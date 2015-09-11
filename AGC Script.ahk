@@ -233,12 +233,10 @@ Tray_Help:
 	Gui, Help:Show
 	return
 Help_Autohotkeycom:
-	msgbox Will be added once the thread is approved!
-	;~ Run, http://ahkscript.org/boards/
+	Run, http://ahkscript.org/boards/viewtopic.php?f=6&t=9455
 	return
 Help_Ahkscriptorg:
-	msgbox Will be added once the thread is approved!
-	;~ Run, http://www.autohotkey.com/board/topic/
+	Run, http://www.autohotkey.com/board/topic/149299-automatic-gamacolor/
 	return
 GuiClose:
 	Gui, Destroy
