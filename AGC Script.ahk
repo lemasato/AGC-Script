@@ -165,7 +165,7 @@ WinWaitClose, AGC First Run
 return MyEdit
 }
 NFRHelp:
-	Run, %A_ScriptDir%\ncp.png
+	Run, %A_ScriptDir%\HELP.png
 	return
 NFROK:
 	Gui, Submit, NoHide
