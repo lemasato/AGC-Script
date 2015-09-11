@@ -233,10 +233,13 @@ Tray_Help:
 	Gui, Help:Show
 	return
 Help_Autohotkeycom:
-	Run, http://ahkscript.org/boards/
+	msgbox Will be added once the thread is approved!
+	;~ Run, http://ahkscript.org/boards/
 	return
 Help_Ahkscriptorg:
-	Run, http://www.autohotkey.com/board/topic/
+	msgbox Will be added once the thread is approved!
+	;~ Run, http://www.autohotkey.com/board/topic/
+	return
 GuiClose:
 	Gui, Destroy
 	return
