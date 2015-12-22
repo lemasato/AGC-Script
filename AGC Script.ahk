@@ -217,7 +217,7 @@ Tray_Params:
 	Gui, Param:Add, Checkbox, vRunOnStartup x10 y10, Run on startup?
 	Gui, Param:Add, Checkbox, vStartHidden x10 y30, Hide nvidia control panel?
 	Gui, Param:Add, Text, x231 y50, Select window
-	Gui, Param:Add, DropDownList, x10 y65 Choose0 vparamTitle gTray_Params_LoadPrefs w500, %winList%
+	Gui, Param:Add, DropDownList, x10 y65 Choose0 vparamTitle gTray_Params_LoadPrefs w500, ||%winList%
 	Gui, Param:Add, Text, x90 y110, GAMMA
 	Gui, Param:Add, Slider, x10 y125 w200 vGammaSlider Range30-280 ToolTip, 280
 	Gui, Param:Add, Text, x402 y110, COLOR
