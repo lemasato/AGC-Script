@@ -289,7 +289,7 @@ Tray_Help:
 	Gui, Help: -MinimizeBox -MaximizeBox +AlwaysOnTop
 	Gui, Help:Add, text, ,Hello, thanks for using my script && welcome to AGC's Help!`n`nThis script sets Gamma && Color (Digital Vibrance) based on the active process.`nTo get started, right click on the tray icon then select [Settings].`nHere, you can decide whether should the script run on startup or if the Nvidia Control Panel should be hidden.`nYou can also select your favorite application to apply your custom Gamma/Vibrance preferences.`nWhen you're done, click on "Apply settings" && feel free to either select another application or close the GUI!
 	Gui, Help: Add, text, cBlue gTray_Help_Thread,If you have any question, click here!
-	Gui, Help: Add, text, cFA8C00 gTray_Help_Donate, If you like my work and feel generous, click here!
+	Gui, Help: Add, text, cFA8C00 gTray_Help_Donate, If you like my work or feel generous, click here! (Thank you!)
 	Gui, Help: Add, text, cGreen, `nScript version: %AGCVersion%
 	Gui, Help:Show
 	return
