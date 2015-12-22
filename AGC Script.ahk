@@ -3,7 +3,7 @@
 	https://autohotkey.com/board/topic/149299-automatic-gamacolor/
 	https://github.com/lemasato/AGC-Script
 */
-AGCVersion := "1.3"
+AGCVersion := "1.3.0.1"
 
 #SingleInstance Force
 
@@ -26,11 +26,6 @@ ShellMessage( wParam,lParam )
 		}
 }
 ;===============================
-
-;======================================
-;										AUTORUN
-;											START
-;======================================
 
 ;___Some variables___;
 global iniFile, nvHandler, nvStatic, NVCPLPath
@@ -63,11 +58,9 @@ TrayTip,,Ready!
 return
 
 ;======================================
-;										AUTORUN
-;											END
+;										FUNCTIONS
 ;======================================
 
-;___Functions___;
 get_nvidia_handler() {
 ;			Retrieves the NVCPL's handler and returns it so we can use NVCPL if it's hidden.
 	WinGet, nvPID, PID, ahk_exe nvcplui.exe
@@ -79,19 +72,20 @@ get_nvidia_handler() {
 }
 
 nv_Switch(handler, gammaVal, colorVal) {
-;			Sends the value retrived from the .ini to the NVCPL
+;			Apply gamma/vibrance preferences
+;			The values are minus one because we press RIGHT in order to apply them
 	DetectHiddenWindows, On
-	;~ ControlClick, %nvStatic%, ahk_id %handler%, , Left	; Static2 is the button pressed to enter the screen brightness/color settings
-	;~ ControlClick ,%nvButton%, ahk_id %handler%, , Left	; Button4 is the button pressed to enable the custom settings
-		PostMessage, 0x0405,0,% gammaVal -1,msctls_trackbar323, ahk_id %handler%	; Sends the Gamma value (minus one because we then press the right arrow to apply it) to the bar
-			ControlSend,msctls_trackbar323, {Blind}{Right}, ahk_id %handler%	; press the right arrow to apply the value to the bar (it adds one, this is why we sent the gamma var value minus one)
-		PostMessage, 0x0405,0,% colorVal -1,msctls_trackbar324, ahk_id %handler% ; same but for color
-			ControlSend, msctls_trackbar324, {Blind}{Right}, ahk_id %handler% ; same but for color
-	;~ ControlClick,Button9, ahk_id %handler%, , Left ; clicks on the apply button
+		PostMessage, 0x0405,0,% gammaVal -1,msctls_trackbar323, ahk_id %handler%
+			ControlSend,msctls_trackbar323, {Blind}{Right}, ahk_id %handler%
+		PostMessage, 0x0405,0,% colorVal -1,msctls_trackbar324, ahk_id %handler%
+			ControlSend, msctls_trackbar324, {Blind}{Right}, ahk_id %handler%
+	;~ ControlClick,Button9, ahk_id %handler%, , Left ; apply button
+	DetectHiddenWindows, Off
 }  
 
 Create_Ini() {
-;			creates the ini file and sets the non-existing values
+;			Creates the ini file
+;			Sets the non-existing values
 	IniRead, x, %iniFile%, Settings, RunOnStartup
 	if ( x = "ERROR" or x = "" )
 		IniWrite, 0, %iniFile%, Settings, RunOnStartup	
@@ -104,7 +98,6 @@ Create_Ini() {
 		if x contains Static 
 		{
 			IniWrite, %x%, %iniFile%, Settings, NVCPL.AdjustdesktopCtrl
-			;~ FileAppend, `n, %iniFile%
 			Reload
 		}
 	}
@@ -120,10 +113,10 @@ Create_Ini() {
 }
 
 Check_Ini(process) {
-;			Retrieves the gamma/color values from the .ini and returns them for the nv_Switch function to use.
-;			If no values have been set, it will apply the default ones
+;			Retrieves the preferences from the .ini, returns them
+;			If no preferences have been set, default one will be returned
 	IniRead, x, %iniFile%, %process%, Gamma
-	if (x = "ERROR") ; if there is no settings specified for the app in the ini, applies the default ones
+	if (x = "ERROR") ; if no settings specified applies the default ones
 	{
 		IniRead, gamma, %iniFile%, Default, Gamma
 		IniRead, color, %iniFile%, Default, Color
@@ -150,9 +143,9 @@ Run_NVCPL() {
 	WinWait, ahk_exe nvcplui.exe
 	sleep 500
 	}
-	ControlClick, %nvStatic%, ahk_exe nvcplui.exe,,Left	; Static2 is the button pressed to enter the screen brightness/color settings
+	ControlClick, %nvStatic%, ahk_exe nvcplui.exe,,Left	; "Adjust desktop color and settings" button
 	sleep 500
-	ControlClick, Button4, ahk_exe nvcplui.exe,,Left
+	ControlClick, Button4, ahk_exe nvcplui.exe,,Left ; "Use NVIDIA settings" button
 }
 
 First_Run(setting, controlName) {
@@ -165,26 +158,34 @@ Gui, NFR:Add, text, x10 y10, Since it's your first time running the script, you 
 Gui, NFR:Add, text, x10 y45, Please, click on %setting% then click on OK
 Gui, NFR:Add, text, x10 y60 cBlue gNFR_Help xs, Here's some help (click)
 Gui, NFR:Add, text, x10 y90, Control retrieved:
-Gui, NFR:Add, Edit, x95 y87 vMyEdit WantReturn ReadOnly
+Gui, NFR:Add, Edit, x95 y87 vcontrolRetrieved WantReturn ReadOnly
 Gui, NFR:Add, text, x10 y115, Example expected:
-Gui, NFR:Add, Edit, x105 y113 vMyEdit2 ReadOnly, %controlName%
+Gui, NFR:Add, Edit, x105 y113 vcontrolExpected ReadOnly, %controlName%
+Gui, NFR:Add, text, x10 y150, Set here the default Gamma/Vibrance values:
+Gui, NFR:Add, Edit, x230 y148 w45
+Gui, NFR:Add, UpDown, vDefaultGamma Range30-280, 100
+Gui, NFR:Add, Edit, x280 y148 w45
+Gui, NFR:Add, UpDown, vDefaultColor Range0-100, 50
+;~ Gui, NFR:Add, Edit, x230 y148
 Gui, NFR:Add, Button, ys y100 w50 h30 gNFR_OK, OK
 Gui, NFR:Show
 Run, %NVCPLPath%
 SetTimer, NFR_Refresh, 500
 WinWait, Welcome to AGC!
 WinWaitClose, Welcome to AGC!
-return MyEdit
+return controlRetrieved
 }
 NFR_Help:
 	Run, https://raw.githubusercontent.com/lemasato/AGC-Script/master/help.png
 	return
 NFR_OK:
 	Gui, Submit, NoHide
-	GuiControlGet, MyEdit	; control we need
-	GuiControlGet, MyEdit2 ; var containing infos about it
-	if MyEdit not contains %MyEdit2%
-		msgbox, 262144, Warning!, The retrieved value does not seem to be valid! `nPlease make sure that it corresponds and try again.`n`nExpected value: %MyEdit2%`nRetrieved value: %MyEdit%
+	IniWrite, %DefaultGamma%, %iniFile%, Default, Gamma
+	IniWrite, %DefaultColor%, %iniFile%, Default, Color
+	GuiControlGet, controlRetrieved	; control we need
+	GuiControlGet, controlExpected ; var containing infos about it
+	if controlRetrieved not contains %controlExpected%
+		msgbox, 262144, Warning!, The retrieved value does not seem to be valid! `nPlease make sure that it corresponds and try again.`n`nExpected control: %controlExpected%`nRetrieved control: %controlRetrieved%
 	else {
 		SetTimer, NFR_Refresh, Off
 		Gui, NFR:Submit
@@ -199,11 +200,12 @@ NFR_Refresh:
 		If ( ErrorLevel = 1 ) ; timed out
 			goto NFR_Refresh
 		MouseGetPos, , , , datctrl
-		GuiControl, NFR:, MyEdit, %datctrl%
+		GuiControl, NFR:, controlRetrieved, %datctrl%
 	}
 	return 
 	
-;___Tray Menu Labels___;
+;===================
+;========== Tray Menu
 
 Tray_Params:
 	global paramTitle
@@ -237,7 +239,6 @@ Tray_Params:
 	IniRead, x, %iniFile%, Default, Color
 	GuiControl, Param:, DefaultColor, %x%
 	Gui, Param:Show
-	
 
 Tray_Params_Apply:
 	Gui, Param:Submit, NoHide
@@ -288,17 +289,18 @@ Tray_Help:
 	Gui, Help:Destroy
 	Gui, Help:New, ,AGC Help
 	Gui, Help: -MinimizeBox -MaximizeBox +AlwaysOnTop
-	Gui, Help:Add, text, ,Hello, thanks for using my script && welcome to AGC's Help!`n`nThis script sets Gamma && Color (Digital Vibrance) based on the active process.`nTo get started, right click on the tray icon then select [Settings].`nHere, you can decide whether should the script run on startup or if the Nvidia Control Panel should be hidden.`nYou can also select your favorite application to apply your custom Gamma/Vibrance preferences.`nWhen you're done, click on "Apply settings" && feel free to either select another application or close the GUI!
+	Gui, Help:Add, text, ,Hello, thanks for using my script && welcome to AGC's Help!`n`nThis script sets Gamma && Color (Digital Vibrance) based on the active process.`nTo get started, right click on the tray icon then select [Settings].`nThere, you can decide whether should the script run on startup or if the Nvidia Control Panel should be hidden.`nYou can also select your favorite application to apply your custom Gamma/Vibrance preferences.`nWhen you're done, click on "Apply settings" && feel free to either select another application or close the GUI!
 	Gui, Help: Add, text, cBlue gTray_Help_Thread,If you have any question, click here!
-	Gui, Help: Add, text, cFA8C00 gTray_Help_Donate, Like my work / feel generous, click here!  (Thank you!)
+	Gui, Help: Add, text, cEA0089 gTray_Help_Donate, Like my work / feel generous, click here!  (Thank you!)
 	Gui, Help: Add, text, cGreen, `nScript version: %AGCVersion%
 	Gui, Help:Show
 	return
 Tray_Help_Thread:
-	Run, http://ahkscript.org/boards/viewtopic.php?f=6&t=9455
+	Run, https://autohotkey.com/boards/viewtopic.php?f=6&t=9455
 	return
 Tray_Help_Donate:
 	Run, https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=E9W692RF9ZLYA
+	return
 Tray_Reload:
 	Reload
 	return
@@ -316,7 +318,7 @@ Tray_Exit:
 	ExitApp
 	return
 	
-;_____________________________________
+;===============================
 
 ExitFunc() {
 	Process, Close, nvcplui.exe
