@@ -1,5 +1,6 @@
-/*
+/* 
 	AGC Automatic Gama & Color Script by masato
+	https://autohotkey.com/board/topic/149299-automatic-gamacolor/
 	https://github.com/lemasato/AGC-Script
 */
 AGCVersion := "1.3"
