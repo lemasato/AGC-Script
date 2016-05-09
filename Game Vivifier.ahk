@@ -238,6 +238,7 @@ Is_Window_FullScreen(process, title) {
 }
 
 Check_Update(auto) {
+	static
 	if programVersion contains beta
 		return
 	updaterPath := A_ScriptDir "\Game Vivifier Updater.exe"
@@ -275,7 +276,7 @@ Check_Update(auto) {
 		if ( autoUpdate )
 			IniWrite, 1,% iniFilePath,Settings,AutoUpdate
 		UrlDownloadToFile, https://raw.githubusercontent.com/lemasato/Game-Vivifier/master/Updater.exe,% updaterPath
-		UrlDownloadToFile, https://raw.githubusercontent.com/lemasato/Game-Vivifier/master/Game Vivifier.exe, % A_ScriptDir "\Game Vivifier NewVersion"
+		UrlDownloadToFile, https://raw.githubusercontent.com/lemasato/Game-Vivifier/master/Game Vivifier.exe, % A_ScriptDir "\Game Vivifier NewVersion.exe"
 		sleep 100
 		Run, % updaterPath
 	return
