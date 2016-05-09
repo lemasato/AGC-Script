@@ -14,7 +14,7 @@ global userprofile
 ;===============================
 
 ;___Some variables___;
-global programVersion := "2.0beta" , programName := "Game Vivifier"
+global programVersion := "2.0" , programName := "Game Vivifier"
 global iniFilePath := userprofile "\Documents\AutoHotKey\" programName "\Preferences.ini"
 global nvcplHandler, nvcplPath, nvStatic
 IniRead, nvcplPath,% iniFilePath,Settings,Path
