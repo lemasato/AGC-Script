@@ -1,7 +1,7 @@
 # NVIDIA ONLY
 
 Game Vivifier,  
-Will bring your games to life!
+Bring your games to life!
 
 Thread: https://autohotkey.com/boards/viewtopic.php?f=6&t=9455  
 Download: --Upcoming!--
