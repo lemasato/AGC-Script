@@ -226,6 +226,68 @@ Run_NVCPL(state="") {
 	sleep 100
 	ControlClick, Button4, ahk_exe nvcplui.exe,,Left ; "Use NVIDIA settings" button
 }
+	
+Is_Window_FullScreen(process, title) {
+;			Detects if the window is fullscreen
+;			 by checking its style and size
+	hwnd := WinExist( title " ahk_exe " process )
+	WinGet style, Style, ahk_id %hwnd%
+	WinGetPos, , , w, h, ahk_id %hwnd%
+	state := ( ( style & 0x20800000 ) or h < A_ScreenHeight or w < A_ScreenWidth ) ? false : true
+	return state
+}
+
+Check_Update(auto) {
+	if programVersion contains beta
+		return
+	updaterPath := A_ScriptDir "\Game Vivifier Updater.exe"
+	if (FileExist(updaterPath))
+		FileDelete,% updaterPath
+	
+	ComObjError(0)
+	whr := ComObjCreate("WinHttp.WinHttpRequest.5.1")
+	whr.Open("GET", "https://raw.githubusercontent.com/lemasato/Game-Vivifier/master/version.txt", true)
+	whr.Send()
+	; Using 'true' above and the call below allows the script to remain responsive.
+	whr.WaitForResponse(3) ; 3 seconds
+	if ( whr.ResponseText != "" )
+		newVersion := whr.ResponseText
+	else newVersion := programVersion ; couldn't reach the file, cancel update
+	StringReplace, newVersion, newVersion, `n,,1 ; remove the 2nd line
+	if ( programVersion != newVersion ) {
+		if ( auto = 1 )
+			Goto YesUpdate
+		else {		
+			Gui, Update:Destroy
+			Gui, Update:New, +AlwaysOnTop +SysMenu -MinimizeBox -MaximizeBox +OwnDialogs,% "Update! v" newVersion
+			Gui, Update:Default
+			Gui, Add, Text, x10 y10,A new version was found!`nWould you like to update now?
+			Gui, Add, Button, x10 y50 w70 h40 gYesUpdate,Yeah`nDo it now!
+			Gui, Add, Button, x95 y50 w70 h40 gNoUpdate,Nope`nNext time?
+			Gui, Add, Button, x10 y100 w150 h40,Just take me`nto the download page
+			Gui, Add, CheckBox, x25 y150 vautoUpdate,Update automatically`n       from now on?
+			Gui, Show
+		}
+	}
+
+	YesUpdate:
+		Gui, Submit
+		if ( autoUpdate )
+			IniWrite, 1,% iniFilePath,Settings,AutoUpdate
+		UrlDownloadToFile, https://raw.githubusercontent.com/lemasato/Game-Vivifier/master/Updater.exe,% updaterPath
+		UrlDownloadToFile, https://raw.githubusercontent.com/lemasato/Game-Vivifier/master/Game Vivifier.exe, % A_ScriptDir "\Game Vivifier NewVersion"
+		sleep 100
+		Run, % updaterPath
+	return
+
+	NoUpdate:
+		Gui, Submit
+		if ( autoUpdate )
+			IniWrite, 1,% iniFilePath,Settings,AutoUpdate
+	return
+	;~ IfMsgBox, Yes
+		;~ Run https://github.com/lemasato/Game-Vivifier/releases/latest
+}
 
 First_Run(setting, controlName) {
 ;			Ask the user to help retrieving a control and returns it
@@ -293,68 +355,6 @@ First_Run(setting, controlName) {
 				GuiControl, NFR:, controlRetrieved, %datctrl%
 		}
 	return 
-}
-	
-Is_Window_FullScreen(process, title) {
-;			Detects if the window is fullscreen
-;			 by checking its style and size
-	hwnd := WinExist( title " ahk_exe " process )
-	WinGet style, Style, ahk_id %hwnd%
-	WinGetPos, , , w, h, ahk_id %hwnd%
-	state := ( ( style & 0x20800000 ) or h < A_ScreenHeight or w < A_ScreenWidth ) ? false : true
-	return state
-}
-
-Check_Update(auto) {
-	if programVersion contains beta
-		return
-	updaterPath := A_ScriptDir "\Game Vivifier Updater.exe"
-	if (FileExist(updaterPath))
-		FileDelete,% updaterPath
-	
-	ComObjError(0)
-	whr := ComObjCreate("WinHttp.WinHttpRequest.5.1")
-	whr.Open("GET", "https://raw.githubusercontent.com/lemasato/Game-Vivifier/master/version.txt", true)
-	whr.Send()
-	; Using 'true' above and the call below allows the script to remain responsive.
-	whr.WaitForResponse(3) ; 3 seconds
-	if ( whr.ResponseText != "" )
-		newVersion := whr.ResponseText
-	else newVersion := programVersion ; couldn't reach the file, cancel update
-	StringReplace, newVersion, newVersion, `n,,1 ; remove the 2nd line
-	if ( programVersion != newVersion ) {
-		if ( auto = 1 )
-			Goto YesUpdate
-		else {		
-			Gui, Update:Destroy
-			Gui, Update:New, +AlwaysOnTop +SysMenu -MinimizeBox -MaximizeBox +OwnDialogs,% "Update! v" newVersion
-			Gui, Update:Default
-			Gui, Add, Text, x10 y10,A new version was found!`nWould you like to update now?
-			Gui, Add, Button, x10 y50 w70 h40 gYesUpdate,Yeah`nDo it now!
-			Gui, Add, Button, x95 y50 w70 h40 gNoUpdate,Nope`nNext time?
-			Gui, Add, Button, x10 y100 w150 h40,Just take me`nto the download page
-			Gui, Add, CheckBox, x25 y150 vautoUpdate,Update automatically`n       from now on?
-			Gui, Show
-		}
-	}
-
-	YesUpdate:
-		Gui, Submit
-		if ( autoUpdate )
-			IniWrite, 1,% iniFilePath,Settings,AutoUpdate
-		UrlDownloadToFile, https://raw.githubusercontent.com/lemasato/Game-Vivifier/master/Updater.exe,% updaterPath
-		UrlDownloadToFile, https://raw.githubusercontent.com/lemasato/Game-Vivifier/master/Game Vivifier.exe, % A_ScriptDir "\Game Vivifier NewVersion"
-		sleep 100
-		Run, % updaterPath
-	return
-
-	NoUpdate:
-		Gui, Submit
-		if ( autoUpdate )
-			IniWrite, 1,% iniFilePath,Settings,AutoUpdate
-	return
-	;~ IfMsgBox, Yes
-		;~ Run https://github.com/lemasato/Game-Vivifier/releases/latest
 }
 
 Exit_Func(ExitReason, ExitCode) {
