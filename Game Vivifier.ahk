@@ -242,8 +242,11 @@ Check_Update(auto) {
 	if programVersion contains beta
 		return
 	updaterPath := A_ScriptDir "\Game Vivifier Updater.exe"
+	newVersionPath := A_ScriptDir "\Game Vivifier NewVersion.exe"
 	if (FileExist(updaterPath))
 		FileDelete,% updaterPath
+	if (FileExist(newVersionPath))
+		FileDelete % newVersionPath
 	
 	ComObjError(0)
 	whr := ComObjCreate("WinHttp.WinHttpRequest.5.1")
@@ -257,19 +260,22 @@ Check_Update(auto) {
 	StringReplace, newVersion, newVersion, `n,,1 ; remove the 2nd line
 	if ( programVersion != newVersion ) {
 		if ( auto = 1 )
-			Goto YesUpdate
+			GoSub YesUpdate
 		else {		
 			Gui, Update:Destroy
-			Gui, Update:New, +AlwaysOnTop +SysMenu -MinimizeBox -MaximizeBox +OwnDialogs,% "Update! v" newVersion
+			Gui, Update:New, +AlwaysOnTop +SysMenu -MinimizeBox -MaximizeBox +OwnDialogs +HwndUpdateGuiHwnd,% "Update! v" newVersion
 			Gui, Update:Default
 			Gui, Add, Text, x10 y10,A new version was found!`nWould you like to update now?
 			Gui, Add, Button, x10 y50 w70 h40 gYesUpdate,Yeah`nDo it now!
 			Gui, Add, Button, x95 y50 w70 h40 gNoUpdate,Nope`nNext time?
-			Gui, Add, Button, x10 y100 w150 h40,Just take me`nto the download page
+			Gui, Add, Button, x10 y100 w150 h40 gDownloadPage,Just take me`nto the download page
 			Gui, Add, CheckBox, x25 y150 vautoUpdate,Update automatically`n       from now on?
 			Gui, Show
+			WinWait, ahk_id %UpdateGuiHwnd%
+			WinWaitClose, ahk_id %UpdateGuiHwnd%
 		}
 	}
+	return
 
 	YesUpdate:
 		Gui, Submit
@@ -277,7 +283,13 @@ Check_Update(auto) {
 			IniWrite, 1,% iniFilePath,Settings,AutoUpdate
 		UrlDownloadToFile, https://raw.githubusercontent.com/lemasato/Game-Vivifier/master/Updater.exe,% updaterPath
 		UrlDownloadToFile, https://raw.githubusercontent.com/lemasato/Game-Vivifier/master/Game Vivifier.exe, % A_ScriptDir "\Game Vivifier NewVersion.exe"
-		sleep 100
+		Loop {
+			if FileExist(updaterPath)
+				if FileExist(A_ScriptDir "\Game Vivifier NewVersion.exe")
+					break
+			sleep 1000
+		}
+		sleep 1000
 		Run, % updaterPath
 	return
 
@@ -285,6 +297,11 @@ Check_Update(auto) {
 		Gui, Submit
 		if ( autoUpdate )
 			IniWrite, 1,% iniFilePath,Settings,AutoUpdate
+	return
+	
+	DownloadPage:
+		Gui, Submit
+		Run, https://github.com/lemasato/Game-Vivifier/releases/latest
 	return
 	;~ IfMsgBox, Yes
 		;~ Run https://github.com/lemasato/Game-Vivifier/releases/latest
