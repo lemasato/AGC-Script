@@ -583,12 +583,12 @@ return
 
 Tray_About() {
 	Gui, About:Destroy
-	Gui, About:New, +AlwaysOnTop +SysMenu -MinimizeBox -MaximizeBox +OwnDialogs,% "About " programName
+	Gui, About:New, +AlwaysOnTop +SysMenu -MinimizeBox -MaximizeBox +OwnDialogs,% programName " by masato"
 	Gui, About:Default
 	Gui, Add, Text, cGreen x320 y10,v%programVersion%
 	Gui, Add, Text, x10 y10,Hello! Thank you for using %programName%!
 	Gui, Add, Text, x10 y35,%programName% sets Gamma and Digital Vibrance based on the active process.`nTo get started, right click on the tray icon then select [Settings].
-	Gui, Add, Text, x10 y75,Select your favorite game from the left list and click on the ">" button.`nThen, select your game from the right list, set your preferences,`nand click on [Apply settings].`n
+	Gui, Add, Text, x10 y75,Select your favorite game from the left list and click on the ">" button.`nThen, select your game from the right list, set your preferences`n   by moving the sliders and click on [Apply settings].`n
 	Gui, Add, Text, x10 y125 cBlue gTray_About_Thread,>> Visit the ahkscript.org thread <<
 	if !( FileExist( A_Temp "\paypaldonatebutton.png" ) )
 		UrlDownloadToFile, https://www.paypalobjects.com/en_US/i/btn/btn_donate_SM.gif, % A_Temp "\paypaldonatebutton.png"
