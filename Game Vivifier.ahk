@@ -2,6 +2,7 @@
 	AGC Automatic Gama & Color Script by masato
 	https://autohotkey.com/board/topic/149299-automatic-gamacolor/
 	https://github.com/lemasato/Game-Vivifier
+
 */
 
 OnExit("Exit_Func")
@@ -17,9 +18,9 @@ global userprofile
 global programVersion := "2.0" , programName := "Game Vivifier"
 global iniFilePath := userprofile "\Documents\AutoHotKey\" programName "\Preferences.ini"
 global nvcplHandler, nvcplPath, nvStatic
-IniRead, nvcplPath,% iniFilePath,Settings,Path
-IniRead, nvStatic,% iniFilePath,Settings,AdjustDesktopCtrl
-IniRead, autoUpdate,% iniFilePath,Settings,AdjustDesktopCtrl
+IniRead, nvcplPath,% iniFilePath,SETTINGS,Path
+IniRead, nvStatic,% iniFilePath,SETTINGS,AdjustDesktopCtrl
+IniRead, autoUpdate,% iniFilePath,SETTINGS,AdjustDesktopCtrl
 
 ;___Tray Menu___;
 if FileExist("icon.ico") {
@@ -32,7 +33,7 @@ Menu, Tray, Add, Settings, Tray_Params
 Menu, Tray, Add, About?, Tray_About
 Menu, Tray, Add, 
 Menu, Tray, Add, Hide NVCPL, Tray_Hide
-IniRead, x, %iniFilePath%, Settings, StartHidden
+IniRead, x, %iniFilePath%, SETTINGS, StartHidden
 if ( x > 0 )
 	Menu, Tray, Check, Hide NVCPL
 Menu, Tray, Add
@@ -80,7 +81,7 @@ Get_NVCPL_Handler() {
 ;			Retrieves the NVCPL's handler 
 ;			so we can use it while it's hidden.
 	handler := WinExist("ahk_exe nvcplui.exe")
-	IniRead, hidden, %iniFilePath%, Settings, StartHidden
+	IniRead, hidden, %iniFilePath%, SETTINGS, StartHidden
 	if ( hidden != 0 )
 		WinHide, ahk_exe nvcplui.exe
 	return handler
@@ -101,24 +102,23 @@ Switch(process, title, gVal, cVal, gDef, cDef) {
 	ControlSend, msctls_trackbar324, {Blind}{Right}, ahk_id %nvcplHandler%
 	isFullscreen := Is_Window_Fullscreen( process, title )
 	if ( isFullscreen ) && ( ( gVal != gDef ) || ( cVal != cDef ) )
-	{	; Fixes the issue where the default values would be set back when the game resolution is different from desktop resolution
+	{	; Fixes the issue where the default values would be set after a few seconds when the game resolution is different from desktop resolution
 		timeOut := A_Sec + 10 , delay := A_Sec + 1 , i := 0
 		Loop
 		{
-			if ( timeOut > 59 ) ; set timeOut correctly if higher than 59
+			if ( timeOut > 59 ) ; set correctly if higher than 59
 				if ( A_Sec < 10 )
 					timeOut -= 60
-			if ( A_Sec > timeOut ) OR ( ( A_Sec < 10 ) AND ( timeOut = 59 ) ) ; breaks the loop once timeOut was reached
-			{
+			if ( A_Sec > timeOut ) OR ( ( A_Sec < 10 ) AND ( timeOut = 59 ) ) ; break the loop once specified time was reached
 				break
-			}
-			If !( WinActive( title " ahk_exe " process) ) ; breaks the loop if the window isn't active anymore
+			If !( WinActive( title " ahk_exe " process) ) ; break the loop if the window isn't active anymore
 				break
 			if ( A_Sec >= delay ) OR ( ( A_Sec < 59 ) AND ( delay > 59 ) ) ; repeat every 2secs
 			{
 				delay := A_Sec + 2
 				If Mod(delay, 2)=0
 				{
+					;		Make sure the value is sent by moving the slider a tick right, then two tick right
 					PostMessage, 0x0405,0,% gVal -1,msctls_trackbar323, ahk_id %nvcplHandler%
 					ControlSend,msctls_trackbar323, {Blind}{Right}, ahk_id %nvcplHandler%
 					PostMessage, 0x0405,0,% cVal -1,msctls_trackbar324, ahk_id %nvcplHandler%
@@ -141,30 +141,30 @@ Switch(process, title, gVal, cVal, gDef, cDef) {
 Create_Ini() {
 ;			Creates the ini file
 ;			Sets the non-existing values
-	IniRead, x, %iniFilePath%, Settings, RunOnStartup
+	IniRead, x, %iniFilePath%, SETTINGS, RunOnStartup
 	if ( x = "ERROR" or x = "" )
-		IniWrite, 1, %iniFilePath%, Settings, RunOnStartup	
+		IniWrite, 1, %iniFilePath%, SETTINGS, RunOnStartup	
 	
-	IniRead, x, %iniFilePath%, Settings, StartHidden
+	IniRead, x, %iniFilePath%, SETTINGS, StartHidden
 	if ( x = "ERROR" or x = "" )
-		IniWrite, 1, %iniFilePath%, Settings, StartHidden	
+		IniWrite, 1, %iniFilePath%, SETTINGS, StartHidden	
 	
-	IniRead, x, %iniFilePath%, Settings, AdjustDesktopCtrl
+	IniRead, x, %iniFilePath%, SETTINGS, AdjustDesktopCtrl
 	if ( x = "ERROR" or x = "" ) {
 		x := First_Run("Adjust Desktop Color Settings", "Static")
 		if x contains Static 
 		{
-			IniWrite, %x%, %iniFilePath%, Settings, AdjustDesktopCtrl
+			IniWrite, %x%, %iniFilePath%, SETTINGS, AdjustDesktopCtrl
 			Reload
 		}
 	}
 	
-	IniRead, x, %iniFilePath%, Default, Gamma
+	IniRead, x, %iniFilePath%, DEFAULT, Gamma
 	if (x = "ERROR" or x = "" )
-			IniWrite, 100, %iniFilePath%, Default, Gamma
-	IniRead, x, %iniFilePath%, Default, Vibrance
+			IniWrite, 100, %iniFilePath%, DEFAULT, Gamma
+	IniRead, x, %iniFilePath%, DEFAULT, Vibrance
 	if (x ="ERROR" or x = "" ) {
-		IniWrite, 50, %iniFilePath%, Default, Vibrance
+		IniWrite, 50, %iniFilePath%, DEFAULT, Vibrance
 	}
 }
 
@@ -175,21 +175,21 @@ Get_Preferences(process) {
 	IniRead, x2, %iniFilePath%, %process%, Vibrance
 	if ( x = "ERROR" ) OR ( x2 = "ERROR" ) ; if no settings specified applies the default ones
 	{
-		IniRead, gamma, %iniFilePath%, Default, Gamma
-		IniRead, color, %iniFilePath%, Default, Vibrance
+		IniRead, gamma, %iniFilePath%, DEFAULT, Gamma
+		IniRead, color, %iniFilePath%, DEFAULT, Vibrance
 	}
 	else ; else applies custom settings
 	{
 		IniRead, gamma, %iniFilePath%, %process%, Gamma
 		if gamma is not integer
-			IniRead, gamma, %iniFilePath%, Default, Gamma
+			IniRead, gamma, %iniFilePath%, DEFAULT, Gamma
 		
 		IniRead, color, %iniFilePath%, %process%, Vibrance
 		if color is not integer
-			IniRead, color, %iniFilePath%, Default, Vibrance
+			IniRead, color, %iniFilePath%, DEFAULT, Vibrance
 	}
-	IniRead, gammaDef, %iniFilePath%, Default, Gamma
-	IniRead, colorDef, %iniFilePath%, Default, gammaDef
+	IniRead, gammaDef, %iniFilePath%, DEFAULT, Gamma
+	IniRead, colorDef, %iniFilePath%, DEFAULT, gammaDef
 	if ( gammaDef = "ERROR" || gammaDef = "" )
 		gammaDef := 100
 	if ( colorDef = "ERROR" || colorDef ="" )
@@ -216,7 +216,7 @@ Run_NVCPL(state="") {
 		if ( ErrorLevel = 1 )
 			Reload
 	}
-	IniWrite, %nvcplPath%, %iniFilePath%, Settings, Path
+	IniWrite, %nvcplPath%, %iniFilePath%, SETTINGS, Path
 	Process, Close, nvcplui.exe
 	Process, WaitClose, nvcplui.exe
 	Run, %nvcplPath%, , %state%
@@ -238,6 +238,10 @@ Is_Window_FullScreen(process, title) {
 }
 
 Check_Update(auto) {
+;			Check for an update online, and ask the user if he wants to update now
+;			If Auto-Update is On, automatically download the update
+;			It works by downloading both the new version and the auto-updater
+;				then closing the current instancie of the script and renaming the new version
 	static
 	if programVersion contains beta
 		return
@@ -280,7 +284,7 @@ Check_Update(auto) {
 	YesUpdate:
 		Gui, Submit
 		if ( autoUpdate )
-			IniWrite, 1,% iniFilePath,Settings,AutoUpdate
+			IniWrite, 1,% iniFilePath,SETTINGS,AutoUpdate
 		UrlDownloadToFile, https://raw.githubusercontent.com/lemasato/Game-Vivifier/master/Updater.exe,% updaterPath
 		UrlDownloadToFile, https://raw.githubusercontent.com/lemasato/Game-Vivifier/master/Game Vivifier.exe, % A_ScriptDir "\Game Vivifier NewVersion.exe"
 		Loop {
@@ -289,6 +293,7 @@ Check_Update(auto) {
 					break
 			sleep 1000
 		}
+		IniWrite,% currentTime,% iniFilePath, SETTINGS,TimeOfLastUpdate
 		sleep 1000
 		Run, % updaterPath
 	return
@@ -296,21 +301,19 @@ Check_Update(auto) {
 	NoUpdate:
 		Gui, Submit
 		if ( autoUpdate )
-			IniWrite, 1,% iniFilePath,Settings,AutoUpdate
+			IniWrite, 1,% iniFilePath,SETTINGS,AutoUpdate
 	return
 	
 	DownloadPage:
 		Gui, Submit
 		Run, https://github.com/lemasato/Game-Vivifier/releases/latest
 	return
-	;~ IfMsgBox, Yes
-		;~ Run https://github.com/lemasato/Game-Vivifier/releases/latest
 }
 
 First_Run(setting, controlName) {
-;			Ask the user to help retrieving a control and returns it
-	global
-	;~ static
+;			Ask the user to click on a specific button so we can retrieve its control
+	static
+	global controlRetrieved
 	Gui, NFR:Destroy
 	Gui, NFR:New, +AlwaysOnTop +SysMenu -MinimizeBox -MaximizeBox +OwnDialogs +LabelNFR_ +hwndGuiNFRHwnd,% "Welcome to " programName "!"
 	Gui, NFR:Default
@@ -329,7 +332,7 @@ First_Run(setting, controlName) {
 	Gui, Add, Button, ys y100 w50 h30 gNFR_OK, OK
 	Gui, Show
 	Run_NVCPL("")
-	SetTimer, NFR_Refresh, 500
+	SetTimer, NFR_Refresh, 100
 	WinWait, ahk_id %GuiNFRHwnd%
 	WinWaitClose, ahk_id %GuiNFRHwnd%
 	return controlRetrieved
@@ -343,17 +346,17 @@ First_Run(setting, controlName) {
 	return
 
 	NFR_Help:
-		Run, https://raw.githubusercontent.com/lemasato/AGC-Script/master/help.png
+		Run, https://raw.githubusercontent.com/lemasato/Game-Vivifier/master/Screenshots/Nvidia`%20Control`%20Panel.png
 	return
 	
 	NFR_OK:
 		Gui, Submit, NoHide
-		IniWrite, %DefaultGamma%, %iniFilePath%, Default, Gamma
-		IniWrite, %DefaultColor%, %iniFilePath%, Default, Vibrance
+		IniWrite, %DefaultGamma%, %iniFilePath%, DEFAULT, Gamma
+		IniWrite, %DefaultColor%, %iniFilePath%, DEFAULT, Vibrance
 		GuiControlGet, controlRetrieved	; control we need
 		GuiControlGet, controlExpected ; var containing infos about it
-		if controlRetrieved not contains %controlExpected%
-			MsgBox, 262144, Warning!, The retrieved value does not seem to be valid! `nPlease make sure that it corresponds and try again.`n`nExpected control: %controlExpected%`nRetrieved control: %controlRetrieved%
+		if controlRetrieved not contains %controlName%
+			MsgBox, 262144, Warning!, The retrieved value does not seem to be valid! `nPlease make sure that it corresponds and try again.`n`nExpected control: %controlName%`nRetrieved control: %controlRetrieved%
 		else {
 			SetTimer, NFR_Refresh, Off
 			Gui, Submit
@@ -365,7 +368,7 @@ First_Run(setting, controlName) {
 		WinGet, winEXE, ProcessName, ahk_id %winID%
 		if ( winEXE = "nvcplui.exe" )
 		{
-			KeyWait, LButton, D T0.1
+			KeyWait, LButton, D
 			If ( ErrorLevel = 1 ) ; timed out
 				goto NFR_Refresh
 			MouseGetPos, , , , datctrl
@@ -592,7 +595,6 @@ Tray_About() {
 	Gui, Add, Picture, x290 y122 gTray_About_Donate,% A_Temp "\paypaldonatebutton.png"
 	Gui, Show, AutoSize
 }
-;~ return
 Tray_About_Thread:
 	Run, https://autohotkey.com/boards/viewtopic.php?f=6&t=9455
 return
