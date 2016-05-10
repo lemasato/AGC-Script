@@ -2,9 +2,10 @@ EnvGet, userprofile, userprofile
 global userprofile
 global programName := "Game Vivifier"
 global iniFilePath := userprofile "\Documents\AutoHotKey\" programName "\Preferences.ini"
+IniRead, programPID,% iniFilePath,SETTINGS,PID
 
-Process, Close, Game Vivifier.exe 
-Process, WaitClose, Game Vivifier.exe
+Process, Close, %programPID%
+Process, WaitClose, %programPID%
 Sleep 1000
 FileMove,% A_ScriptDir "\Game Vivifier NewVersion.exe", % A_ScriptDir "\Game Vivifier.exe", 1
 if ( ErrorLevel ) {
