@@ -21,6 +21,8 @@ global nvcplHandler, nvcplPath, nvStatic
 IniRead, nvcplPath,% iniFilePath,SETTINGS,Path
 IniRead, nvStatic,% iniFilePath,SETTINGS,AdjustDesktopCtrl
 IniRead, autoUpdate,% iniFilePath,SETTINGS,AdjustDesktopCtrl
+programPID := DllCall("GetCurrentProcessId")
+IniWrite,% programPID,% iniFilePath,SETTINGS,PID
 
 ;___Tray Menu___;
 if FileExist("icon.ico") {
