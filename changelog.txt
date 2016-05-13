@@ -1,3 +1,10 @@
+v2.01
+	Can now automatically detect the "Adjust desktop color settings" button
+		if the NVCPL language is set to English or French
+	Added a "Help?" button on the settings menu that gives tips to the user upon overing it
+	Changed the traytip text upon launching to help new users
+	Minor fixes
+
 v2.0
 	New shiny icon!
 	Brand new Settings menu!
