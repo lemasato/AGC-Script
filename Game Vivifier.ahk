@@ -13,7 +13,7 @@ global userprofile
 ;===============================
 
 ;___Some variables___;
-global programVersion := "2.0.5" , programName := "Game Vivifier"
+global programVersion := "2.0.6" , programName := "Game Vivifier"
 global iniFilePath := userprofile "\Documents\AutoHotKey\" programName "\Preferences.ini"
 global nvcplHandler, nvcplPath, nvStatic, programPID
 programPID := DllCall("GetCurrentProcessId")
@@ -310,7 +310,7 @@ Check_Update(auto) {
 		UrlDownloadToFile, https://raw.githubusercontent.com/lemasato/Game-Vivifier/master/Game Vivifier.exe,% newVersionPath
 		Loop {
 			if FileExist(updaterPath)
-				if FileExist(A_ScriptDir "\Game Vivifier NewVersion.exe")
+				if FileExist(newVersionPath)
 					break
 			sleep 1000
 		}
