@@ -13,7 +13,7 @@ global userprofile
 ;===============================
 
 ;___Some variables___;
-global programVersion := "2.0.4" , programName := "Game Vivifier"
+global programVersion := "2.0.5" , programName := "Game Vivifier"
 global iniFilePath := userprofile "\Documents\AutoHotKey\" programName "\Preferences.ini"
 global nvcplHandler, nvcplPath, nvStatic, programPID
 programPID := DllCall("GetCurrentProcessId")
@@ -266,8 +266,8 @@ Check_Update(auto) {
 	static
 	if programVersion contains beta
 		return
-	updaterPath := A_ScriptDir "\Game Vivifier Updater.exe"
-	newVersionPath := A_ScriptDir "\Game Vivifier NewVersion.exe"
+	updaterPath := A_ScriptDir "\gvUpdater.exe"
+	newVersionPath := A_ScriptDir "\gvNewver.exe"
 	if (FileExist(updaterPath))
 		FileDelete,% updaterPath
 	if (FileExist(newVersionPath))
