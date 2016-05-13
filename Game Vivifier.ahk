@@ -314,7 +314,7 @@ Check_Update(auto) {
 					break
 			sleep 1000
 		}
-		IniWrite,% currentTime,% iniFilePath, SETTINGS,TimeOfLastUpdate
+		IniWrite,% A_ScriptName,% iniFilePath,SETTINGS,FileName
 		sleep 1000
 		Run, % updaterPath
 	return
