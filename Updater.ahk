@@ -15,9 +15,9 @@ Loop {
 	FileDelete,% A_ScriptDir "\Game Vivifier.exe"
 	FileDelete,% A_ScriptDir "\Game-Vivifier.exe"
 	sleep 100
-	if !(FileExist(A_ScriptDir "\" fileName)
-		if !(FileExist(A_ScriptDir "\Game Vivifier.exe")
-			if !(FileExist(A_ScriptDir "\Game Vivifier.exe")
+	if !(FileExist(A_ScriptDir "\" fileName))
+		if !(FileExist(A_ScriptDir "\Game Vivifier.exe"))
+			if !(FileExist(A_ScriptDir "\Game Vivifier.exe"))
 				break
 }
 FileMove,% A_ScriptDir "\Game Vivifier NewVersion.exe", % A_ScriptDir "\Game Vivifier.exe", 1
