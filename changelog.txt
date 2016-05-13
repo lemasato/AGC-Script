@@ -1,4 +1,7 @@
-v2.01
+v2.0.2
+	Fixed the tooltip sometimes not disappearing under certain circumstances
+
+v2.0.1
 	Can now automatically detect the "Adjust desktop color settings" button
 		if the NVCPL language is set to English or French
 	Added a "Help?" button on the settings menu that gives tips to the user upon overing it

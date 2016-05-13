@@ -13,7 +13,7 @@ global userprofile
 ;===============================
 
 ;___Some variables___;
-global programVersion := "2.0.1" , programName := "Game Vivifier"
+global programVersion := "2.0.2" , programName := "Game Vivifier"
 global iniFilePath := userprofile "\Documents\AutoHotKey\" programName "\Preferences.ini"
 global nvcplHandler, nvcplPath, nvStatic
 programPID := DllCall("GetCurrentProcessId")
@@ -608,11 +608,13 @@ return
 Settings_Close:
 Gui, Settings:Destroy
 OnMessage(0x200,"WM_MOUSEMOVE", 0)
+ToolTip
 return
 
 Settings_Escape:
 Gui, Settings:Destroy
 OnMessage(0x200,"WM_MOUSEMOVE", 0)
+ToolTip
 return
 
 WM_MOUSEMOVE()
