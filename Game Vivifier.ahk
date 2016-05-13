@@ -13,9 +13,9 @@ global userprofile
 ;===============================
 
 ;___Some variables___;
-global programVersion := "2.0.3" , programName := "Game Vivifier"
+global programVersion := "2.0.4" , programName := "Game Vivifier"
 global iniFilePath := userprofile "\Documents\AutoHotKey\" programName "\Preferences.ini"
-global nvcplHandler, nvcplPath, nvStatic
+global nvcplHandler, nvcplPath, nvStatic, programPID
 programPID := DllCall("GetCurrentProcessId")
 IniWrite,% programPID,% iniFilePath,SETTINGS,PID
 
@@ -317,6 +317,7 @@ Check_Update(auto) {
 		IniWrite,% A_ScriptName,% iniFilePath,SETTINGS,FileName
 		sleep 1000
 		Run, % updaterPath
+		Process, close, %programPID%
 	return
 
 	NoUpdate:
@@ -363,11 +364,11 @@ Get_Control_From_User(ctrlName) {
 	return [ctrlRetrieved, ctrlRetrievedText]
 	
 	NFR_Close:
-		ExitApp
+		Reload
 	return
 	
 	NFR_Escape:
-		ExitApp
+		Reload
 	return
 
 	NFR_Help:
