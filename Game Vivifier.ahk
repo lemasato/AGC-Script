@@ -307,7 +307,7 @@ Check_Update(auto) {
 		if ( autoUpdate )
 			IniWrite, 1,% iniFilePath,SETTINGS,AutoUpdate
 		UrlDownloadToFile, https://raw.githubusercontent.com/lemasato/Game-Vivifier/master/Updater.exe,% updaterPath
-		UrlDownloadToFile, https://raw.githubusercontent.com/lemasato/Game-Vivifier/master/Game Vivifier.exe, % A_ScriptDir "\Game Vivifier NewVersion.exe"
+		UrlDownloadToFile, https://raw.githubusercontent.com/lemasato/Game-Vivifier/master/Game Vivifier.exe,% newVersionPath
 		Loop {
 			if FileExist(updaterPath)
 				if FileExist(A_ScriptDir "\Game Vivifier NewVersion.exe")
