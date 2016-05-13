@@ -1,26 +1,21 @@
 /* 
-	AGC Automatic Gama & Color Script by masato
-	https://autohotkey.com/board/topic/149299-automatic-gamacolor/
+	Game Vivifier by masato
+	Allows NVIDIA users to have custom gamma/vibrance profiles for their game
+	https://autohotkey.com/boards/viewtopic.php?t=9455
 	https://github.com/lemasato/Game-Vivifier
-
 */
-
 OnExit("Exit_Func")
 
 #SingleInstance Force
 SetWorkingDir, %A_ScriptDir%
 EnvGet, userprofile, userprofile
 global userprofile
-
 ;===============================
 
 ;___Some variables___;
-global programVersion := "2.0" , programName := "Game Vivifier"
+global programVersion := "2.0.1" , programName := "Game Vivifier"
 global iniFilePath := userprofile "\Documents\AutoHotKey\" programName "\Preferences.ini"
 global nvcplHandler, nvcplPath, nvStatic
-IniRead, nvcplPath,% iniFilePath,SETTINGS,Path
-IniRead, nvStatic,% iniFilePath,SETTINGS,AdjustDesktopCtrl
-IniRead, autoUpdate,% iniFilePath,SETTINGS,AdjustDesktopCtrl
 programPID := DllCall("GetCurrentProcessId")
 IniWrite,% programPID,% iniFilePath,SETTINGS,PID
 
@@ -50,10 +45,10 @@ if !( InStr(FileExist("\Documents\AutoHotkey\" programName ), "D") )
 
 ;___Functions calls___;
 Check_Update(autoUpdate)
-Create_Ini()
-Run_NVCPL("minimize")
-nvcplHandler := Get_NVCPL_Handler()
-TrayTip,,%programName% is Ready!
+nvcplHandler := Run_NVCPL()
+iniSettingsArray := Get_Ini_Settings()
+autoUpdate := iniSettingsArray[1], nvStatic := iniSettingsArray[2], iniSettingsArray := ""
+TrayTip,% programName " v" programVersion,Right click on the tray icon then`n>> [Settings] for profiles.`n>> [About?] for help.
 
 ;___Window Switch Detect___;
 Gui +LastFound 
@@ -67,27 +62,14 @@ ShellMessage( wParam,lParam )
 {
 	If ( wParam=4 or wParam=32772 ) { ; 4=HSHELL_WINDOWACTIVATED | 32772=HSHELL_RUDEAPPACTIVATED
 		WinGet, winEXE, ProcessName, ahk_id %lParam%
-		if ( winEXE != "autohotkey.exe" and winEXE != A_ScriptName  ) {
-			WinGetTitle, winTitle, ahk_exe %winEXE%
-			userPrefs := Get_Preferences(winEXE)
-			Switch(winEXE, winTitle, userPrefs[1], userPrefs[2], userPrefs[3], userPrefs[4])
+		userPrefs := Get_Preferences(winEXE)
+		Switch(winEXE, winTitle, userPrefs[1], userPrefs[2], userPrefs[3], userPrefs[4])
 		}
 	}
-}
 
 ;======================================
 ;										FUNCTIONS
 ;======================================
-
-Get_NVCPL_Handler() {
-;			Retrieves the NVCPL's handler 
-;			so we can use it while it's hidden.
-	handler := WinExist("ahk_exe nvcplui.exe")
-	IniRead, hidden, %iniFilePath%, SETTINGS, StartHidden
-	if ( hidden != 0 )
-		WinHide, ahk_exe nvcplui.exe
-	return handler
-}
 
 Switch(process, title, gVal, cVal, gDef, cDef) {
 ;			Apply gamma/vibrance preferences.
@@ -140,34 +122,59 @@ Switch(process, title, gVal, cVal, gDef, cDef) {
 	DetectHiddenWindows, Off
 }  
 
-Create_Ini() {
-;			Creates the ini file
-;			Sets the non-existing values
+Get_Ini_Settings() {
+;			Creates the ini file, sets the broken/unexistent values
+;				Return the settings
 	IniRead, x, %iniFilePath%, SETTINGS, RunOnStartup
 	if ( x = "ERROR" or x = "" )
-		IniWrite, 1, %iniFilePath%, SETTINGS, RunOnStartup	
+		IniWrite, 0, %iniFilePath%, SETTINGS, RunOnStartup
 	
 	IniRead, x, %iniFilePath%, SETTINGS, StartHidden
 	if ( x = "ERROR" or x = "" )
-		IniWrite, 1, %iniFilePath%, SETTINGS, StartHidden	
-	
-	IniRead, x, %iniFilePath%, SETTINGS, AdjustDesktopCtrl
-	if ( x = "ERROR" or x = "" ) {
-		x := First_Run("Adjust Desktop Color Settings", "Static")
-		if x contains Static 
-		{
-			IniWrite, %x%, %iniFilePath%, SETTINGS, AdjustDesktopCtrl
-			Reload
-		}
-	}
+		IniWrite, 1, %iniFilePath%, SETTINGS, StartHidden
 	
 	IniRead, x, %iniFilePath%, DEFAULT, Gamma
 	if (x = "ERROR" or x = "" )
 			IniWrite, 100, %iniFilePath%, DEFAULT, Gamma
+
 	IniRead, x, %iniFilePath%, DEFAULT, Vibrance
-	if (x ="ERROR" or x = "" ) {
+	if (x ="ERROR" or x = "" )
 		IniWrite, 50, %iniFilePath%, DEFAULT, Vibrance
+	
+	
+	IniRead, autoUpdate,% iniFilePath,SETTINGS,AutoUpdate
+	if ( autoUpdate = "ERROR" || x = "" )
+		IniWrite, 0,% iniFilePath,SETTINGS,AutoUpdate
+	
+;	Retrieving the control ID
+	IniRead, nvStatic,% iniFilePath,SETTINGS,AdjustDesktopCtrl
+	IniRead, nvStaticText,% iniFilePath,SETTINGS,AdjustDesktopCtrlText
+	if ( nvStatic = "ERROR" || nvStatic = "" || nvStaticText = "ERROR" || nvStaticText = "" ) {
+		i := 0
+		WinShow, ahk_id %nvcplHandler%
+		WinWait, ahk_id %nvcplHandler%
+		Loop {
+			ControlGetText, ctrlText, Static%i%, ahk_id %nvcplHandler%
+			if ( ctrlText = "Régler les paramètres des couleurs du bureau" || ctrlText = "Adjust desktop color settings" || i > 10 )
+				break
+			i++
+		}
+		if ( i < 10 ) { ; Control found automatically
+			IniWrite,Static%i%,% iniFilePath,SETTINGS,AdjustDesktopCtrl
+			IniWrite,% ctrlText,% iniFilePath,SETTINGS,AdjustDesktopCtrlText
+		}
+		else {
+			nvStaticArray := Get_Control_From_User("Adjust Desktop Color Settings")
+			nvStatic := nvStaticArray[1], nvStaticText := nvStaticArray[2]
+			IniWrite,% nvStatic,% iniFilePath,SETTINGS,AdjustDesktopCtrl
+			IniWrite,% nvStaticText,% iniFilePath,SETTINGS,AdjustDesktopCtrlText
+		}
 	}
+
+	IniRead, hidden, %iniFilePath%, SETTINGS, StartHidden
+	if ( hidden = 1 )
+		WinHide, ahk_id %nvcplHandler%
+	return [autoUpdate, nvStatic]
 }
 
 Get_Preferences(process) {
@@ -203,14 +210,14 @@ Get_Preferences(process) {
 	return [gamma, color, gammaDef, colorDef]
 } 
 
-Run_NVCPL(state="") {
-;			Runs the NVCPL and hides it if specified
-;			Ask the user to point its location if it isn't found
+Run_NVCPL() {
+;			Retrieve the NVCPL location and runs it
+;			If unable to find it, ask the user to point its location
+	IniRead, nvcplPath,% iniFilePath,SETTINGS,Path
 	if ( nvcplPath = "ERROR" || nvcplPath = "" ) {
-		EnvGet, progFiles, ProgramFiles(x86)
+		EnvGet, progFiles, ProgramW6432
 		if ( progFiles = )
 			EnvGet, progFiles, ProgramFiles
-		else	EnvGet, progFiles, ProgramFiles
 		nvcplPath := progFiles "\NVIDIA Corporation\Control Panel Client\nvcplui.exe"
 	}
 	if !( FileExist( nvcplPath ) ) {
@@ -218,15 +225,27 @@ Run_NVCPL(state="") {
 		if ( ErrorLevel = 1 )
 			Reload
 	}
-	IniWrite, %nvcplPath%, %iniFilePath%, SETTINGS, Path
+	IniWrite, % nvcplPath,% iniFilePath, SETTINGS, Path
 	Process, Close, nvcplui.exe
 	Process, WaitClose, nvcplui.exe
-	Run, %nvcplPath%, , %state%
-	WinWait, ahk_exe nvcplui.exe
+	Run, %nvcplPath%, ,Min ,nvPID
+	WinWait, ahk_pid %nvPID%
+	WinGet, nvcplHandler, ID, ahk_pid %nvPID%
+	WinShow, ahk_id %nvcplHandler%
+	IniRead, nvStatic,% iniFilePath,SETTINGS,AdjustDesktopCtrl
+	IniRead, nvStaticText,% iniFilePath,SETTINGS,AdjustDesktopCtrlText
+	if ( nvStatic = "ERROR" || nvStatic = "" || nvStaticText = "ERROR" || nvStaticText = "" ) ; If empty, we return so Get_Ini_Settings() will handle it
+		return nvcplHandler
+	ControlGetText, ctrlText,% nvStatic, ahk_id %nvcplHandler%
+	if ( nvStaticText != ctrlText ) {
+		IniDelete,% iniFilePath,SETTINGS,AdjustDesktopCtrl
+		IniDelete,% iniFilePath,SETTINGS,AdjustDesktopCtrlText
+		Reload
+	}
+	ControlClick, %nvStatic%, ahk_id %nvcplHandler%,,Left	; "Adjust Desktop Color Settings" button
 	sleep 100
-	ControlClick, %nvStatic%, ahk_exe nvcplui.exe,,Left	; "Adjust Desktop Color Settings" button
-	sleep 100
-	ControlClick, Button4, ahk_exe nvcplui.exe,,Left ; "Use NVIDIA settings" button
+	ControlClick, Button4, ahk_id %nvcplHandler%,,Left ; "Use NVIDIA settings" button
+	return nvcplHandler
 }
 	
 Is_Window_FullScreen(process, title) {
@@ -312,39 +331,43 @@ Check_Update(auto) {
 	return
 }
 
-First_Run(setting, controlName) {
-;			Ask the user to click on a specific button so we can retrieve its control
+#SingleInstance Force
+Get_Control_From_User("Adjust desktop color settings")
+
+Get_Control_From_User(ctrlName) {
+;			Ask the user to click on a specific button so we can retrieve its control ID
 	static
-	global controlRetrieved
+	global ctrlRetrieved, ctrlRetrievedText
+	supportedLanguages := "[EN/FR]"
 	Gui, NFR:Destroy
-	Gui, NFR:New, +AlwaysOnTop +SysMenu -MinimizeBox -MaximizeBox +OwnDialogs +LabelNFR_ +hwndGuiNFRHwnd,% "Welcome to " programName "!"
+	Gui, NFR:New, +AlwaysOnTop +SysMenu -MinimizeBox -MaximizeBox +OwnDialogs +LabelNFR_ +hwndGuiNFRHwnd,% "ERROR"
 	Gui, NFR:Default
-	Gui, Add, text, x10 y10, Since it's your first time running %programName%, you will be directed trough a few steps.`nThe NVIDIA Control Panel should open in a few seconds.
-	Gui, Add, text, x10 y45, Please, click on [%setting%] then click on OK
-	Gui, Add, text, x10 y60 cBlue gNFR_Help xs, >> Helpful screenshot <<
-	Gui, Add, text, x10 y90, Control retrieved:
-	Gui, Add, Edit, x95 y87 vcontrolRetrieved WantReturn ReadOnly
-	Gui, Add, text, x10 y115, Example expected:
-	Gui, Add, Edit, x105 y113 vcontrolExpected ReadOnly, %controlName%
-	Gui, Add, text, x10 y150, Set here the default Gamma/Vibrance values:
-	Gui, Add, Edit, x230 y148 w45
-	Gui, Add, UpDown, vDefaultGamma Range30-280, 100
-	Gui, Add, Edit, x280 y148 w45
-	Gui, Add, UpDown, vDefaultColor Range0-100, 50
-	Gui, Add, Button, ys y100 w50 h30 gNFR_OK, OK
+	Gui, Add, text, x10 y10, Couldn't retrieve the control ID for "%ctrlName%"! You will have to manually click on it.
+	Gui, Add, text, x10 y25, This error usually happens when your NVCPL's language is different than %supportedLanguages%
+	Gui, Add, text, x10 y40, Please, wait for the NVIDIA Control Panel to open then click on "%ctrlName%"
+	Gui, Add, text, x10 y55 cBlue gNFR_Help xs, >> Click for an helpful screenshot, in case you feel lost <<
+	Gui, Add, text, x10 y85, Control retrieved: 
+	Gui, Add, Edit, x95 y82 vctrlRetrieved WantReturn ReadOnly
+	Gui, Add, text, x10 y115, Expected (example): 
+	Gui, Add, Edit, x105 y112 ReadOnly, Static2
+	Gui, Add, text, x10 y145 cBlue gTray_About_Thread,If you wish to help make %programName% easier for others`nplease post the content of the box below on the ahkscript.org thread! (Click)
+	Gui, Add, Edit, x10 y177 w365 vctrlRetrievedText ReadOnly
+	Gui, Add, Button, x440 y90 w60 h40 gNFR_OK, OK
 	Gui, Show
-	Run_NVCPL("")
+	WinShow, ahk_id %nvcplHandler%
+	WinRestore, ahk_id %nvcplHandler%
 	SetTimer, NFR_Refresh, 100
 	WinWait, ahk_id %GuiNFRHwnd%
 	WinWaitClose, ahk_id %GuiNFRHwnd%
-	return controlRetrieved
+	WinHide, ahk_id %nvcplHandler%
+	return [ctrlRetrieved, ctrlRetrievedText]
 	
 	NFR_Close:
-		Reload
+		ExitApp
 	return
 	
 	NFR_Escape:
-		Reload
+		ExitApp
 	return
 
 	NFR_Help:
@@ -353,32 +376,31 @@ First_Run(setting, controlName) {
 	
 	NFR_OK:
 		Gui, Submit, NoHide
-		IniWrite, %DefaultGamma%, %iniFilePath%, DEFAULT, Gamma
-		IniWrite, %DefaultColor%, %iniFilePath%, DEFAULT, Vibrance
-		GuiControlGet, controlRetrieved	; control we need
-		GuiControlGet, controlExpected ; var containing infos about it
-		if controlRetrieved not contains %controlName%
-			MsgBox, 262144, Warning!, The retrieved value does not seem to be valid! `nPlease make sure that it corresponds and try again.`n`nExpected control: %controlName%`nRetrieved control: %controlRetrieved%
-		else {
+		GuiControlGet, ctrlRetrieved
+		if ctrlRetrieved contains Static
+		{
 			SetTimer, NFR_Refresh, Off
 			Gui, Submit
 		}
 	return
 	
 	NFR_Refresh:
-		MouseGetPos, , , winID
-		WinGet, winEXE, ProcessName, ahk_id %winID%
+		MouseGetPos, , , winHandler
+		WinGet, winEXE, ProcessName, ahk_id %winHandler%
 		if ( winEXE = "nvcplui.exe" )
 		{
 			KeyWait, LButton, D
-			If ( ErrorLevel = 1 ) ; timed out
-				goto NFR_Refresh
-			MouseGetPos, , , , datctrl
-			if datctrl contains Static
-				GuiControl, NFR:, controlRetrieved, %datctrl%
+			MouseGetPos, , , , ctrlName
+			ControlGetText, ctrlText,% ctrlName, ahk_id %winHandler%
+			if ctrlName contains Static
+			{
+				GuiControl, NFR:, ctrlRetrieved,% ctrlName
+				GuiControl, NFR:, ctrlRetrievedText,% ctrlText
+			}
 		}
 	return 
 }
+
 
 Exit_Func(ExitReason, ExitCode) {
 	if ExitReason not in Logoff,Shutdown,Reload,Single
@@ -393,13 +415,15 @@ Exit_Func(ExitReason, ExitCode) {
 ;===================
 ;========== Tray Menu
 
+
 Tray_Params:
 	;		Top Settings
 	Gui, Settings:Destroy
-	Gui, Settings:New, +AlwaysOnTop +SysMenu -MinimizeBox -MaximizeBox +OwnDialogs,% programName " Settings"
+	Gui, Settings:New, +AlwaysOnTop +SysMenu -MinimizeBox -MaximizeBox +OwnDialogs +LabelSettings_,% programName " Settings"
 	Gui, Settings:Default
 	Gui, Add, CheckBox, x10 y10 vrunOnStartup, Run on computer startup?
 	GuiControl, Settings:,runOnStartup,1
+	Gui, Add, Button, x541 y3 w50 h30 vhelpMe,Help?
 	;		Left and Right boxes
 	Gui, Add, ListBox, x10 y35 w250 h300 vleftListItem,%wList%
 	Gui, Add, ListBox, x340 y35 w250 h300 vrightListItem gRight_List_Event
@@ -429,8 +453,8 @@ Tray_Params:
 
 	GoSub Refresh_Both_Lists
 	Gui, Show, AutoSize
+	OnMessage(0x200,"WM_MOUSEMOVE", 1)
 return
-
 
 Right_List_Event:
 ;			Triggers upon selecting an item from the right list
@@ -581,6 +605,26 @@ Apply_Settings:
 	}
 return
 
+Settings_Close:
+Gui, Settings:Destroy
+OnMessage(0x200,"WM_MOUSEMOVE", 0)
+return
+
+Settings_Escape:
+Gui, Settings:Destroy
+OnMessage(0x200,"WM_MOUSEMOVE", 0)
+return
+
+WM_MOUSEMOVE()
+{
+ local controlName
+ MouseGetPos,,,, controlName
+ if ( A_GuiControl = "helpMe" )
+ ToolTip The left list are the currently running programs. The right one are your favourites.`nIf you wish to add a program to your favourite`, select the program from the left list and click the arrow facing right ">"`nSelect your newly added favourite and move the sliders to suit your needs`, then click on "Apply Settings"`nRemoving a program from your favourites can be done by selecting it then clicking the other arrow facing left "<"
+ else ToolTip
+sleep 100
+}
+
 Tray_About() {
 	Gui, About:Destroy
 	Gui, About:New, +AlwaysOnTop +SysMenu -MinimizeBox -MaximizeBox +OwnDialogs,% programName " by masato"
@@ -598,7 +642,7 @@ Tray_About() {
 	Gui, Show, AutoSize
 }
 Tray_About_Thread:
-	Run, https://autohotkey.com/boards/viewtopic.php?f=6&t=9455
+	Run, https://autohotkey.com/boards/viewtopic.php?t=9455
 return
 Tray_About_Donate:
 	Run, https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=E9W692RF9ZLYA
