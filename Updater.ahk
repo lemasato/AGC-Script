@@ -1,3 +1,5 @@
+#SingleInstance Force
+SetWorkingDir, A_ScriptDir
 EnvGet, userprofile, userprofile
 global userprofile
 global programName := "Game Vivifier"
@@ -8,24 +10,28 @@ IniRead, fileName,% iniFilePath,SETTINGS,FileName
 if ( programPID != "ERROR" || programPID "" )
 	Process, Close, %programPID%
 Loop {
+	Process, Close, %fileName%
 	Process, Close, Game Vivifier.exe
 	Process, Close, Game-Vivifier.exe
-	Sleep 100
-	FileDelete,% A_ScriptDir "\" fileName
-	FileDelete,% A_ScriptDir "\Game Vivifier.exe"
-	FileDelete,% A_ScriptDir "\Game-Vivifier.exe"
 	sleep 100
-	if !(FileExist(A_ScriptDir "\" fileName))
-		if !(FileExist(A_ScriptDir "\Game Vivifier.exe"))
-			if !(FileExist(A_ScriptDir "\Game Vivifier.exe"))
+	FileDelete,%  fileName
+	FileDelete,% "Game Vivifier.exe"
+	FileDelete,% "Game-Vivifier.exe"
+	sleep 100
+	if !(FileExist(fileName))
+		if !(FileExist("Game Vivifier.exe"))
+			if !(FileExist("Game Vivifier.exe"))
 				break
 }
-FileMove,% A_ScriptDir "\Game Vivifier NewVersion.exe", % A_ScriptDir "\Game Vivifier.exe", 1
-;~ if ( ErrorLevel ) {
-	;~ FileDelete, % A_ScriptDir "\Game Vivifier NewVersion.exe"
-	;~ IniWrite, 0,% iniFilePath, SETTINGS,AutoUpdate
-	;~ MsgBox,0x40010,, An error occured while updating!`nAuto-update was turned off for safety!
-;~ }
-;~ else Run, % A_ScriptDir "\Game Vivifier.exe"
+sleep 1000
+FileMove,% "gvNewver.exe",% "Game Vivifier.exe",1
+if ( ErrorLevel ) {
+	FileDelete, % "\gvNewver"
+	IniWrite, 0,% iniFilePath, SETTINGS,AutoUpdate
+	MsgBox,0x40010,, An error occured while updating!`nAuto-update was turned off for safety!
+}
+else {
+	sleep 2000
+	Run, % "Game Vivifier.exe"
+}
 ExitApp
-
