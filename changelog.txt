@@ -1,3 +1,6 @@
+v2.0.3 & v2.0.4
+	Auto-update issues should have been fixed now
+
 v2.0.2
 	Fixed the settings menu "Help?" tooltip sometimes not disappearing under certain circumstances
 
