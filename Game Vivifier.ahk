@@ -13,7 +13,7 @@ global userprofile
 ;===============================
 
 ;___Some variables___;
-global programVersion := "2.0.2" , programName := "Game Vivifier"
+global programVersion := "2.0.3" , programName := "Game Vivifier"
 global iniFilePath := userprofile "\Documents\AutoHotKey\" programName "\Preferences.ini"
 global nvcplHandler, nvcplPath, nvStatic
 programPID := DllCall("GetCurrentProcessId")
