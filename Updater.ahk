@@ -7,6 +7,8 @@ IniRead, fileName,% iniFilePath,SETTINGS,FileName
 
 if ( programPID != "ERROR" || programPID "" )
 	Process, Close, %programPID%
+Process, Close, Game Vivifier.exe
+Process, Close, Game-Vivifier.exe
 Sleep 2000
 FileDelete,% A_ScriptDir "\" fileName
 FileDelete,% A_ScriptDir "\Game Vivifier.exe"
