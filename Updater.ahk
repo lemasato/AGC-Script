@@ -10,6 +10,7 @@ Process, WaitClose, %programPID%
 Sleep 1000
 if fileName contains .exe
 {
+	FileDelete,% A_ScriptDir "\" fileName
 	FileMove,% A_ScriptDir "\Game Vivifier NewVersion.exe", % A_ScriptDir "\Game Vivifier.exe", 1
 	if ( ErrorLevel ) {
 		FileDelete, % A_ScriptDir "\Game Vivifier NewVersion.exe"
