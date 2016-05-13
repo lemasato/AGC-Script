@@ -1,5 +1,5 @@
 v2.0.2
-	Fixed the tooltip sometimes not disappearing under certain circumstances
+	Fixed the settings menu "Help?" tooltip sometimes not disappearing under certain circumstances
 
 v2.0.1
 	Can now automatically detect the "Adjust desktop color settings" button
