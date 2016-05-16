@@ -34,6 +34,7 @@ if ( autoUpdate = 1 )
 	Compare_Both_DateTime(autoUpdate, currentDay, currentMonth, currentYear, currentHour, currentMin, currentSec, previousDay, previousMonth, previousYear, previousHour, previousMin, previousSec)
 
 ;		Random comment line to make things look pretty
+Close_Program_Instancies()
 Download_New_Version()
 ExitApp
 
