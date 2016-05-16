@@ -46,6 +46,7 @@ if !( InStr(FileExist("\Documents\AutoHotkey\" programName ), "D") )
 
 ;___Functions calls___;
 Check_Update(autoUpdate)
+Update_Startup_Shortcut()
 nvcplHandler := Run_NVCPL()
 iniSettingsArray := Get_Ini_Settings()
 nvStatic := iniSettingsArray[1], iniSettingsArray := ""
@@ -398,6 +399,26 @@ Get_Control_From_User(ctrlName) {
 	return 
 }
 
+Update_Startup_Shortcut() {
+	IniRead, state,% iniFilePath,SETTINGS,RunOnStartup
+	if ( state ) {
+		if ( FileExist( A_ScriptDir "\icon.ico" ) ) {
+			fileName := StrSplit(A_ScriptName,.)
+			if fileName[2] contains ahk
+			{
+				FileDelete, % A_Startup "\" programName ".lnk"
+				FileCreateShortcut, % A_ScriptFullPath, % A_Startup "\" programName ".lnk", , , , % A_ScriptDir "\icon.ico"
+			}
+		}
+		else {
+			FileDelete, % A_Startup "\" programName ".lnk"
+			FileCreateShortcut, % A_ScriptFullPath, % A_Startup "\" programName ".lnk"
+		}
+	}
+	if !( state )
+		FileDelete, % A_Startup "\" programName ".lnk"
+}
+
 
 Exit_Func(ExitReason, ExitCode) {
 	if ExitReason not in Logoff,Shutdown,Reload,Single
@@ -586,16 +607,7 @@ Apply_Settings:
 	IniWrite, % runOnStartup, % iniFilePath,SETTINGS,RunOnStartup
 	IniWrite, % gammaDefault, % iniFilePath,DEFAULT,Gamma
 	IniWrite, % vibranceDefault, % iniFilePath,DEFAULT,Vibrance
-	if ( runOnStartup ) {
-		if ( FileExist( A_ScriptDir "\icon.ico" ) ) {
-			fileName := StrSplit(A_ScriptName,.)
-			if fileName[2] contains ahk
-				FileCreateShortcut, % A_ScriptFullPath, % A_Startup "\" programName ".lnk", , , , % A_ScriptDir "\icon.ico"
-		}
-		else FileCreateShortcut, % A_ScriptFullPath, % A_Startup "\" programName ".lnk"
-	}
-	if !( runOnStartup )
-		FileDelete, % A_Startup "\" programName ".lnk"
+	Update_Startup_Shortcut()
 	if ( rightListExe != "" ) {
 		IniWrite,% gammaValue,% iniFilePath,% rightListExe,Gamma
 		IniWrite,% vibranceValue,% iniFilePath,% rightListExe,Vibrance
