@@ -271,7 +271,7 @@ Check_Update(auto) {
 	updaterPath := "gvUpdater.exe"
 	if (FileExist(updaterPath))
 		FileDelete,% updaterPath
-	if (FileExist("Game Vivifier Updater.exe")	; pre-2.0.6 updater name
+	if (FileExist("Game Vivifier Updater.exe"))	; pre-2.0.6 updater name
 		FileDelete,% "Game Vivifier Updater.exe"
 	
 	ComObjError(0)
