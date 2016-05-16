@@ -89,6 +89,7 @@ Close_Program_Instancies() {
 		FileDelete,%  fileName
 		FileDelete,% "Game Vivifier.exe"
 		FileDelete,% "Game-Vivifier.exe"
+		FileDelete,% "Game Vivifier NewVer.exe" ; Name of the old updated version
 		sleep 100
 		if !( FileExist(fileName) ) && !( FileExist("Game Vivifier.exe") ) && !( FileExist("Game-Vivifier.exe") )
 			break
