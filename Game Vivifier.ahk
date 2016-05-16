@@ -13,11 +13,12 @@ global userprofile
 ;===============================
 
 ;___Some variables___;
-global programVersion := "2.0.6" , programName := "Game Vivifier"
+global programVersion := "2.0.7" , programName := "Game Vivifier"
 global iniFilePath := userprofile "\Documents\AutoHotKey\" programName "\Preferences.ini"
 global nvcplHandler, nvcplPath, nvStatic, programPID
 programPID := DllCall("GetCurrentProcessId")
 IniWrite,% programPID,% iniFilePath,SETTINGS,PID
+IniRead,autoUpdate,% iniFilePath,SETTINGS,AutoUpdate
 
 ;___Tray Menu___;
 if FileExist("icon.ico") {
@@ -47,7 +48,7 @@ if !( InStr(FileExist("\Documents\AutoHotkey\" programName ), "D") )
 Check_Update(autoUpdate)
 nvcplHandler := Run_NVCPL()
 iniSettingsArray := Get_Ini_Settings()
-autoUpdate := iniSettingsArray[1], nvStatic := iniSettingsArray[2], iniSettingsArray := ""
+nvStatic := iniSettingsArray[1], iniSettingsArray := ""
 TrayTip,% programName " v" programVersion,Right click on the tray icon then`n>> [Settings] for profiles.`n>> [About?] for help.
 
 ;___Window Switch Detect___;
@@ -62,10 +63,10 @@ ShellMessage( wParam,lParam )
 {
 	If ( wParam=4 or wParam=32772 ) { ; 4=HSHELL_WINDOWACTIVATED | 32772=HSHELL_RUDEAPPACTIVATED
 		WinGet, winEXE, ProcessName, ahk_id %lParam%
-		userPrefs := Get_Preferences(winEXE)
+		userPrefs := Get_Preferences(winEXE)	; array is as follow: gammaVal, colorVal, gammaDefault, colorDefault
 		Switch(winEXE, winTitle, userPrefs[1], userPrefs[2], userPrefs[3], userPrefs[4])
-		}
 	}
+}
 
 ;======================================
 ;										FUNCTIONS
@@ -174,7 +175,7 @@ Get_Ini_Settings() {
 	IniRead, hidden, %iniFilePath%, SETTINGS, StartHidden
 	if ( hidden = 1 )
 		WinHide, ahk_id %nvcplHandler%
-	return [autoUpdate, nvStatic]
+	return [nvStatic]
 }
 
 Get_Preferences(process) {
@@ -254,7 +255,7 @@ Is_Window_FullScreen(process, title) {
 	hwnd := WinExist( title " ahk_exe " process )
 	WinGet style, Style, ahk_id %hwnd%
 	WinGetPos, , , w, h, ahk_id %hwnd%
-	state := ( ( style & 0x20800000 ) or h < A_ScreenHeight or w < A_ScreenWidth ) ? false : true
+	state := ( (style & 0x20800000) || h < A_ScreenHeight || w < A_ScreenWidth ) ? false : true
 	return state
 }
 
@@ -266,12 +267,10 @@ Check_Update(auto) {
 	static
 	if programVersion contains beta
 		return
-	updaterPath := A_ScriptDir "\gvUpdater.exe"
-	newVersionPath := A_ScriptDir "\gvNewver.exe"
+
+	updaterPath := "gvUpdater.exe"
 	if (FileExist(updaterPath))
 		FileDelete,% updaterPath
-	if (FileExist(newVersionPath))
-		FileDelete % newVersionPath
 	
 	ComObjError(0)
 	whr := ComObjCreate("WinHttp.WinHttpRequest.5.1")
@@ -279,7 +278,7 @@ Check_Update(auto) {
 	whr.Send()
 	; Using 'true' above and the call below allows the script to remain responsive.
 	whr.WaitForResponse(3) ; 3 seconds
-	if ( whr.ResponseText != "" )
+	if ( whr.ResponseText != "" && whr.ResponseText != "NotFound" )
 		newVersion := whr.ResponseText
 	else newVersion := programVersion ; couldn't reach the file, cancel update
 	StringReplace, newVersion, newVersion, `n,,1 ; remove the 2nd line
@@ -306,18 +305,13 @@ Check_Update(auto) {
 		Gui, Submit
 		if ( autoUpdate )
 			IniWrite, 1,% iniFilePath,SETTINGS,AutoUpdate
-		UrlDownloadToFile, https://raw.githubusercontent.com/lemasato/Game-Vivifier/master/Updater.exe,% updaterPath
-		UrlDownloadToFile, https://raw.githubusercontent.com/lemasato/Game-Vivifier/master/Game Vivifier.exe,% newVersionPath
-		Loop {
-			if FileExist(updaterPath)
-				if FileExist(newVersionPath)
-					break
-			sleep 1000
-		}
 		IniWrite,% A_ScriptName,% iniFilePath,SETTINGS,FileName
+		UrlDownloadToFile, https://raw.githubusercontent.com/lemasato/Game-Vivifier/master/Updater.exe,% updaterPath
 		sleep 1000
 		Run, % updaterPath
 		Process, close, %programPID%
+		OnExit("Exit_Func", 0)
+		ExitApp
 	return
 
 	NoUpdate:
@@ -328,7 +322,7 @@ Check_Update(auto) {
 	
 	DownloadPage:
 		Gui, Submit
-		Run, https://github.com/lemasato/Game-Vivifier/releases/latest
+		Run, % "https://github.com/lemasato/Game-Vivifier/releases/latest"
 	return
 }
 
@@ -372,7 +366,7 @@ Get_Control_From_User(ctrlName) {
 	return
 
 	NFR_Help:
-		Run, https://raw.githubusercontent.com/lemasato/Game-Vivifier/master/Screenshots/Nvidia`%20Control`%20Panel.png
+		Run, % "https://raw.githubusercontent.com/lemasato/Game-Vivifier/master/Screenshots/Nvidia Control Panel.png"
 	return
 	
 	NFR_OK:
@@ -638,17 +632,17 @@ Tray_About() {
 	Gui, Add, Text, x10 y75,Select your favorite game from the left list and click on the ">" button.`nThen, select your game from the right list, set your preferences`n   by moving the sliders and click on [Apply settings].`n
 	Gui, Add, Text, x10 y125 cBlue gTray_About_Thread,>> Visit the ahkscript.org thread <<
 	if !( FileExist( A_Temp "\paypaldonatebutton.png" ) )
-		UrlDownloadToFile, https://www.paypalobjects.com/en_US/i/btn/btn_donate_SM.gif, % A_Temp "\paypaldonatebutton.png"
+		UrlDownloadToFile, % "https://www.paypalobjects.com/en_US/i/btn/btn_donate_SM.gif", % A_Temp "\paypaldonatebutton.png"
 	if ( ErrorLevel )
 		Gui, Add, Button, x295 y125 gTray_About_Donate, Donate
 	Gui, Add, Picture, x290 y122 gTray_About_Donate,% A_Temp "\paypaldonatebutton.png"
 	Gui, Show, AutoSize
 }
 Tray_About_Thread:
-	Run, https://autohotkey.com/boards/viewtopic.php?t=9455
+	Run, % "https://autohotkey.com/boards/viewtopic.php?t=9455"
 return
 Tray_About_Donate:
-	Run, https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=E9W692RF9ZLYA
+	Run, % "https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=E9W692RF9ZLYA"
 return
 Tray_Reload:
 	Reload
