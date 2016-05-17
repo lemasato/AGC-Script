@@ -1,5 +1,7 @@
 v2.0.9
 	Will automatically update the program shortcut everytime upon launch if the "run on startup" box was ticked
+	The program won't attempt to apply custom settings when the activated window is one of the following:
+		the Nvidia Control Panel (nvcplui.exe), an autohotkey script process (autohotkey.exe), and itself
 
 v2.0.8
 	Minor typo fixes
