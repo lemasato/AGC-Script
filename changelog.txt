@@ -1,3 +1,9 @@
+v2.0.9
+	Will automatically update the program shortcut everytime upon launch if the "run on startup" box was ticked
+
+v2.0.8
+	Minor typo fixes
+
 v2.0.7
 	Greatly enhanced the Updater.
 	Everything update-related should go smooth now!

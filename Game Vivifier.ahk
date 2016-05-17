@@ -13,7 +13,7 @@ global userprofile
 ;===============================
 
 ;___Some variables___;
-global programVersion := "2.0.8" , programName := "Game Vivifier"
+global programVersion := "2.0.9" , programName := "Game Vivifier"
 global iniFilePath := userprofile "\Documents\AutoHotKey\" programName "\Preferences.ini"
 global nvcplHandler, nvcplPath, nvStatic, programPID
 programPID := DllCall("GetCurrentProcessId")
@@ -21,10 +21,6 @@ IniWrite,% programPID,% iniFilePath,SETTINGS,PID
 IniRead,autoUpdate,% iniFilePath,SETTINGS,AutoUpdate
 
 ;___Tray Menu___;
-if FileExist("icon.ico") {
-	sleep 10
-	Menu, Tray, Icon, icon.ico,,0
-}
 Menu, Tray, Tip, %programName%
 Menu, Tray, NoStandard
 Menu, Tray, Add, Settings, Tray_Params
@@ -62,10 +58,12 @@ return
 
 ShellMessage( wParam,lParam )
 {
-	If ( wParam=4 or wParam=32772 ) { ; 4=HSHELL_WINDOWACTIVATED | 32772=HSHELL_RUDEAPPACTIVATED
+	if ( wParam=4 or wParam=32772 ) { ; 4=HSHELL_WINDOWACTIVATED | 32772=HSHELL_RUDEAPPACTIVATED
 		WinGet, winEXE, ProcessName, ahk_id %lParam%
-		userPrefs := Get_Preferences(winEXE)	; array is as follow: gammaVal, colorVal, gammaDefault, colorDefault
-		Switch(winEXE, winTitle, userPrefs[1], userPrefs[2], userPrefs[3], userPrefs[4])
+		if ( winExe != "autohotkey.exe" && winExe != "nvcplui.exe" && winExe != A_ScriptName) {
+			userPrefs := Get_Preferences(winEXE)	; array is as follow: gammaVal, colorVal, gammaDefault, colorDefault
+			Switch(winEXE, winTitle, userPrefs[1], userPrefs[2], userPrefs[3], userPrefs[4])
+		}
 	}
 }
 
@@ -400,23 +398,16 @@ Get_Control_From_User(ctrlName) {
 }
 
 Update_Startup_Shortcut() {
+;			Remove the old shortcut and place the new one
+;			Or just remove it if it isn't supposed to run on startup anymore
 	IniRead, state,% iniFilePath,SETTINGS,RunOnStartup
 	if ( state ) {
-		if ( FileExist( A_ScriptDir "\icon.ico" ) ) {
-			fileName := StrSplit(A_ScriptName,.)
-			if fileName[2] contains ahk
-			{
-				FileDelete, % A_Startup "\" programName ".lnk"
-				FileCreateShortcut, % A_ScriptFullPath, % A_Startup "\" programName ".lnk", , , , % A_ScriptDir "\icon.ico"
-			}
-		}
-		else {
-			FileDelete, % A_Startup "\" programName ".lnk"
-			FileCreateShortcut, % A_ScriptFullPath, % A_Startup "\" programName ".lnk"
-		}
-	}
-	if !( state )
 		FileDelete, % A_Startup "\" programName ".lnk"
+		FileCreateShortcut, % A_ScriptFullPath, % A_Startup "\" programName ".lnk"
+	}
+	else {
+		FileDelete, % A_Startup "\" programName ".lnk"
+	}
 }
 
 
@@ -439,12 +430,12 @@ Tray_Params:
 	Gui, Settings:Destroy
 	Gui, Settings:New, +AlwaysOnTop +SysMenu -MinimizeBox -MaximizeBox +OwnDialogs +LabelSettings_,% programName " Settings"
 	Gui, Settings:Default
-	Gui, Add, CheckBox, x10 y10 vrunOnStartup, Run on computer startup?
+	Gui, Add, CheckBox, x10 y10 vrunOnStartup, Run the program on system startup?
 	GuiControl, Settings:,runOnStartup,1
 	Gui, Add, Button, x541 y3 w50 h30 vhelpMe,Help?
 	;		Left and Right boxes
-	Gui, Add, ListBox, x10 y35 w250 h300 vleftListItem,%wList%
-	Gui, Add, ListBox, x340 y35 w250 h300 vrightListItem gRight_List_Event
+	Gui, Add, ListBox, x10 y35 w250 h300 vleftListItem Sort,%wList%
+	Gui, Add, ListBox, x340 y35 w250 h300 vrightListItem gRight_List_Event Sort
 	;		Middle Buttons
 	Gui, Add, Button, x260 y130 w80 h30 gRight_Arrow,>
 	Gui, Add, Button, x260 y160 w80 h40 gRefresh_Both_Lists, Refresh`nPrograms List
@@ -644,11 +635,12 @@ Tray_About() {
 	Gui, Add, Text, x10 y10,Hello! Thank you for using %programName%!
 	Gui, Add, Text, x10 y35,%programName% sets Gamma and Digital Vibrance based on the active process.`nTo get started, right click on the tray icon then select [Settings].
 	Gui, Add, Text, x10 y75,Select your favorite game from the left list and click on the ">" button.`nThen, select your game from the right list, set your preferences`n   by moving the sliders and click on [Apply settings].`n
-	Gui, Add, Text, x10 y125 cBlue gTray_About_Thread,>> Visit the ahkscript.org thread <<
-	if !( FileExist( A_Temp "\paypaldonatebutton.png" ) )
+	Gui, Add, Text, x10 y130 cBlue gTray_About_Thread,>> Click to visit the ahkscript.org thread <<
+	if !( FileExist( A_Temp "\paypaldonatebutton.png" ) ) {
 		UrlDownloadToFile, % "https://www.paypalobjects.com/en_US/i/btn/btn_donate_SM.gif", % A_Temp "\paypaldonatebutton.png"
-	if ( ErrorLevel )
-		Gui, Add, Button, x295 y125 gTray_About_Donate, Donate
+		if ( ErrorLevel )
+			Gui, Add, Button, x295 y125 gTray_About_Donate, Donations
+	}
 	Gui, Add, Picture, x290 y122 gTray_About_Donate,% A_Temp "\paypaldonatebutton.png"
 	Gui, Show, AutoSize
 }
