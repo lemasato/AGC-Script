@@ -1,3 +1,12 @@
+v2.0.10
+	French language added - Can be changed from the [Settings] menu
+	Added several check towards the auto-detection of the "Adjust desktop color settings" control
+	Preferences are now instantly saved upon moving the sliders
+	   (The "Apply Settings" button was therefore removed and replaced by the "Help?" button)
+	Updated the "Help?" button in the [Settings] menu
+	Updated the [About?] menu
+	Minor fixes and changes
+
 v2.0.9
 	Will automatically update the program shortcut everytime upon launch if the "run on startup" box was ticked
 	The program won't attempt to apply custom settings when the activated window is one of the following:
