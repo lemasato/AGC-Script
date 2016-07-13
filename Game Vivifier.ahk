@@ -14,7 +14,7 @@ SetWorkingDir, %A_ScriptDir%
 ;___Some variables___;
 global userprofile
 EnvGet, userprofile, userprofile
-global programVersion := "2.0.11" , programName := "Game Vivifier", programLang
+global programVersion := "2.0.12" , programName := "Game Vivifier", programLang
 global iniFilePath := userprofile "\Documents\AutoHotKey\" programName "\Preferences.ini"
 global nvHandler, nvPath, nvStatic, nvStaticText, programPID
 
@@ -72,7 +72,6 @@ Switch(process, title, gVal, cVal, gDef, cDef) {
 	if !( WinExist("ahk_id " handler ) ) { ; User most likely closed the window
 		Reload_Func()
 	}
-	ControlSend,SysListView321, {Blind}{Left 10}, ahk_id %handler%
 	PostMessage, 0x0405,0,% gVal -1,msctls_trackbar323, ahk_id %handler%
 	ControlSend,msctls_trackbar323, {Blind}{Right}, ahk_id %handler%
 	NvApi.SetDVCLevelEx(cVal)
