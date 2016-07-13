@@ -1,3 +1,11 @@
+v2.0.11
+	Added Class_NvAPI (by jNizM) support! 
+	- - - It is only for the vibrance though, gamma is still handled trough the Nvidia Control Panel
+	Optimized the way settings are sent when a fullscreen application is detected
+	Changed the ">" and "<" buttons into "->" and "<-" to avoid confusion
+	Changed the text-links in the [About?] tray menu into actual links.
+	Minor fixes to the translations.
+
 v2.0.10
 	French language added - Can be changed from the [Settings] menu
 	Added several check towards the auto-detection of the "Adjust desktop color settings" control
