@@ -3,6 +3,7 @@
 		v1.0: Initial release
 		v1.0.1: Attempts at fixing the tool
 		v1.1: Greatly enhanced the tool, updates should go smooth now
+		v1.2: Added beta download
 */
 
 
@@ -12,6 +13,12 @@ EnvGet, userprofile, userprofile
 global programName := "Game Vivifier"
 global iniFilePath := userprofile "\Documents\AutoHotKey\" programName "\Preferences.ini"
 global newVersionPath := "gvNewver.exe"
+global programDL
+beta := 0
+if ( beta )
+	programDL := "https://raw.githubusercontent.com/lemasato/Beta-Stuff/master/Game-Vivifier/Game%20Vivifier.exe"
+else
+	programDL := "https://raw.githubusercontent.com/lemasato/Game-Vivifier/master/Game%20Vivifier.exe"
 
 ;		Retrieving the current date and time, then separating into their own vars
 FormatTime, currentDateTime,,dd/MM/yy-HH:mm:ss
@@ -100,7 +107,7 @@ Close_Program_Instancies() {
 Download_New_Version() {
 ;			Download the new version, rename and runs it
 ;			Warns the user if it couldn't be retrieved
-	UrlDownloadToFile,% "https://raw.githubusercontent.com/lemasato/Game-Vivifier/master/Game Vivifier.exe",% newVersionPath
+	UrlDownloadToFile,% programDL,% newVersionPath
 		if ( ErrorLevel = 1 ) {
 			problem := "The program timed out while trying to retrieve the new version."
 			solution := "Auto-update was disabled. Please make sure your network is working correctly.`nOr try downloading the new version manually."
