@@ -6,14 +6,15 @@
 */
 
 OnExit("Exit_Func")
-#SingleInstance, Off
+#SingleInstance Off
+;~ #SingleInstance Force ; uncomment this line when using .ahk version
 SetWorkingDir, %A_ScriptDir%
-EnvGet, userprofile, userprofile
-global userprofile
 ;===============================
 
 ;___Some variables___;
-global programVersion := "2.0.10" , programName := "Game Vivifier", programLang
+global userprofile
+EnvGet, userprofile, userprofile
+global programVersion := "2.0.11" , programName := "Game Vivifier", programLang
 global iniFilePath := userprofile "\Documents\AutoHotKey\" programName "\Preferences.ini"
 global nvHandler, nvPath, nvStatic, nvStaticText, programPID
 
@@ -71,46 +72,31 @@ Switch(process, title, gVal, cVal, gDef, cDef) {
 	if !( WinExist("ahk_id " handler ) ) { ; User most likely closed the window
 		Reload_Func()
 	}
+	ControlSend,SysListView321, {Blind}{Left 10}, ahk_id %handler%
 	PostMessage, 0x0405,0,% gVal -1,msctls_trackbar323, ahk_id %handler%
 	ControlSend,msctls_trackbar323, {Blind}{Right}, ahk_id %handler%
-	PostMessage, 0x0405,0,% cVal -1,msctls_trackbar324, ahk_id %handler%
-	ControlSend, msctls_trackbar324, {Blind}{Right}, ahk_id %handler%
+	NvApi.SetDVCLevelEx(cVal)
 	isFullscreen := Is_Window_Fullscreen(process, title)
-	if ( isFullscreen ) && ( gVal <> gDef || cVal <> cDef ) {
-	;	Fixes the issue where the default values would be set after a few seconds when the game resolution is different from desktop resolution
-		timeOut := A_Sec + 10 , delay := A_Sec + 1 , i := 0
-		Loop
-		{
-			if ( timeOut > 59 ) && ( A_Sec < 10 ) ; set correctly if higher than 59
-				timeOut -= 60
-			if ( A_Sec > timeOut ) || ( A_Sec < 10 && timeOut = 59 ) ; break the loop once specified time was reached or time 
+	if ( isFullScreen ) && ( ( gVal <> gDef  ) || ( cVal <> cDef ) ) {
+		waitSec := A_Sec+5, times := 0
+		Loop {
+			if ( times >= 6 ) || !( WinActive("ahk_exe" process) )
 				break
-			If !( WinActive( title " ahk_exe " process) ) ; break the loop if the window isn't active anymore
-				break
-			if ( A_Sec >= delay ) || ( A_Sec < 59 && delay > 59 ) ; repeat every 2secs
-			{
-				delay := A_Sec + 2
-				If Mod(delay, 2)=0
-				{
-;					Keeping the slider moving make sure the values aren't set back to default
-					PostMessage, 0x0405,0,% gVal -1,msctls_trackbar323, ahk_id %handler%
-					ControlSend,msctls_trackbar323, {Blind}{Right}, ahk_id %handler%
-					PostMessage, 0x0405,0,% cVal -1,msctls_trackbar324, ahk_id %handler%
-					ControlSend, msctls_trackbar324, {Blind}{Right}, ahk_id %handler%
-				}
-				else
-				{
+			if ( ( waitSec >= 59 ) && ( A_Sec < 10 ) ) || ( ( waitSec > 50 ) && ( A_Sec < 10 ) )
+				waitSec -= 60
+			if ( A_Sec >= waitSec ) || ( ( A_Sec < 10 ) && ( waitSec > 50 ) ) {
 					PostMessage, 0x0405,0,% gVal -2,msctls_trackbar323, ahk_id %handler%
 					ControlSend,msctls_trackbar323, {Blind}{Right 2}, ahk_id %handler%
-					PostMessage, 0x0405,0,% cVal -2,msctls_trackbar324, ahk_id %handler%
-					ControlSend, msctls_trackbar324, {Blind}{Right 2}, ahk_id %handler%
-				}
+					PostMessage, 0x0405,0,% gVal -1,msctls_trackbar323, ahk_id %handler%
+					ControlSend,msctls_trackbar323, {Blind}{Right}, ahk_id %handler%
+					NvApi.SetDVCLevelEx(cVal)
+					waitSec := A_Sec+5, times++
 			}
-			else sleep 100
+			sleep 100
 		}
 	}
 	DetectHiddenWindows, Off
-}  
+}
 
 Get_Settings_From_Ini() {
 ;			Creates the ini file, sets the broken/unexistent values
@@ -330,7 +316,7 @@ Get_nvStatic_Auto() {
 		Reload_Func()
 	}
 	else if ( rtrn = "Ctrl_Not_Found" ) {	; Couldn't find automatically. User probably has nvcpl in another language than the supported list. We ask the user to locate it
-		ctrlArray := Get_Control_From_User("Adjust desktop color settings")
+		ctrlArray := Gui_Get_Control("Adjust desktop color settings")
 		ctrlStatic := ctrlArray[1], ctrlStaticText := ctrlArray[2]
 		IniWrite,% ctrlStatic,% iniFilePath,SETTINGS,AdjustDesktopCtrl
 		IniWrite,% ctrlStaticText,% iniFilePath,SETTINGS,AdjustDesktopCtrlText
@@ -382,7 +368,6 @@ Get_Translation(sect, lang, ctrlName="") {
 		if ( lang = "FR" ) {
 			text1 := "Choisissez une langue:", text2 := "Peut être changée depuis le menu [Options].", text3 := "|EN-Anglais|FR-Français", text4 := "Appliquer"
 		}
-		return [text1, text2, text3, text4]
 	}
 	if ( sect = "Gui_Settings" ) {
 		if ( lang = "EN" ) {
@@ -393,20 +378,21 @@ Get_Translation(sect, lang, ctrlName="") {
 			text1 := "Démarrer le programme au démarrage?", text2 := "Langue:", text3 := "|EN-Anglais|FR-Français", text4 := "Fenètres`nCachées", text5 := "Actualiser"
 			text6 := "Aide?", text7 := "Gamma", text8 := "Défaut", text9 := "Vibrance", text10 := "Défaut"
 		}
-		return [text1, text2, text3, text4, text5, text6, text7, text8, text9, text10]
 	}
 	if ( sect = "Gui_About" ) {
+		transArray := Get_Translation("Tray_Menu", lang) ; 1: Settings
+		transArray2 := Get_Translation("Gui_Settings", lang) ; 6: Help
 		if ( lang = "EN" ) {
 			text1  := "Hello, thank you for using " programName "!", text2 := "It allows NVIDIA GPU owners to have custom gamma/vibrance profiles for their games.`n" "Say goodbye to the old boring global profile!"
-			text3:= "If you would like to get started, select [Settings] from the tray menu.`n" "Once over there, hover the ''Help?'' button to get some instructions."
-			text4 := ">> Click to visit the ahkscript.org thread <<"
+			text3:= "If you would like to get started, select [" transArray[1] "] from the tray menu.`n" "Once over there, hover the [" transArray2[6] "] button to get some instructions."
+			text4 := "<a href=""https://github.com/lemasato/Game-Vivifier"">See on GitHub</a>", text5 := "<a href=""https://autohotkey.com/boards/viewtopic.php?t=9455"">See on AutoHotKey Forums</a>"
 		}
+		
 		if ( lang = "FR" ) {
-			text1 := "Bonjour, merci d'utiliser " programName "!", text2 := "It permet aux possésseurs de GPU NVIDIA d'avoir des profiles personnalisés pour leur jeux.`n" "Dites adieu au fatidieux profile global unique!"
-			text3 := "Si vous souhaitez commencer, choisissez [Options] depuis le menu de barre d'état`n" "Une fois celà fait, passez le curseur sur le bouton ''Aide?'' pour obtenir des instructions."
-			text4 := ">> Cliquer pour visiter le sujet sur ahkscript.org <<"
+			text1 := "Bonjour, merci d'utiliser " programName "!", text2 := "Il permet aux possésseurs de GPU NVIDIA d'avoir des profiles personnalisés pour leur jeux.`n" "Dites adieu au fastidieux profile global unique!"
+			text3 := "Si vous souhaitez commencer, choisissez [" transArray[1] "] depuis le menu de barre d'état`n" "Une fois celà fait, passez le curseur sur le bouton [" transArray2[6] "] pour obtenir des instructions."
+			text4 := "<a href=""https://github.com/lemasato/Game-Vivifier"">Voir sur GitHub</a>", text5 := "<a href=""https://autohotkey.com/boards/viewtopic.php?t=9455"">Voir sur AutoHotKey Forums</a>"
 		}
-		return [text1, text2, text3, text4]
 	}
 	if ( sect = "Gui_Update" ) {
 		if ( lang = "EN" ) {
@@ -419,7 +405,6 @@ Get_Translation(sect, lang, ctrlName="") {
 			text2 := "Maintenant", text3 := "Plus tard", text4 := "Ouvrir la page de téléchargement"
 			text5 := "Mettre à jour automatiquement"
 		}
-		return [text1, text2, text3, text4, text5]
 	}
 	if ( sect = "Gui_Get_Control" ) {
 		if ( lang = "EN" ) {
@@ -427,7 +412,7 @@ Get_Translation(sect, lang, ctrlName="") {
 			text2 := "This error is because your NVCPL's language is different than [EN/FR]."
 			text3 := "Please, wait for the NVIDIA Control Panel to open`nthen click on " ctrlName "."
 			text4 := ">> Click to see an helpful screenshot <<", text5 := "Control retrieved:", text6 := "Expected (example):"
-			text7 := "If you wish to help in making the process automatic for your language,`nplease post the content of the box below on the ahkscript.org thread! (CLICK)"
+			text7 := "If you wish to help in making the process automatic for your language,`nplease post the content of the box below on the autohotkey.com thread! (CLICK)"
 			text8 := "VALIDATE"
 		}
 		if ( lang = "FR" ) {
@@ -435,19 +420,18 @@ Get_Translation(sect, lang, ctrlName="") {
 			text2 := "Cette erreur est due à la langue du NVCPL étant différente de [EN/FR]."
 			text3 := "Veuillez attendre l'ouverture du Panneau de configuration NVIDIA,`npuis cliquez sur " ctrlName "."
 			text4 := ">> Cliquer pour voir un screenshot <<", text5 := "Control récupéré:", text6 := "Présumé (example):"
-			text7 := "Si vous souhaitez aider à rendre le procédé automatisé pour votre language,`nveuillez poster le contenu ci-dessous sur le sujet ahkscript.org! (CLICK)"
+			text7 := "Si vous souhaitez aider à rendre le procédé automatisé pour votre language,`nveuillez poster le contenu ci-dessous sur le sujet autohotkey.com! (CLICK)"
 			text8 := "VALIDER"
 		}
-		return [text1, text2, text3, text4, text5, text6, text7, text8]
 	}
 	if ( sect = "Tray_Tip" ) {
+		transArray := Get_Translation("Tray_Menu", lang) ; 1: Settings - 2:About
 		if ( lang = "EN" ) {
-			text1 := "Right click on the tray icon then`n>> [Settings] for profiles.`n>> [About?] for infos."
+			text1 := "Right click on the tray icon then`n>> [" transArray[1] "] for profiles.`n>> [" transArray[2] "] for infos."
 		}
 		if ( lang = "FR" ) {
-			text1 := "Clic droit sur l'icône puis`n>>[Paramètres] pour les profiles.`n>>[À propos?] pour des infos."
+			text1 := "Clic droit sur l'icône puis`n>>[" transArray[1] "] pour les profiles.`n>>[" transArray[2] "] pour des infos."
 		}
-		return text1
 	}
 	if ( sect = "Tray_Menu" ) {
 		if ( lang = "EN" ) {
@@ -456,7 +440,6 @@ Get_Translation(sect, lang, ctrlName="") {
 		if ( lang = "FR" ) {
 			text1 := "Options", text2 := "À Propos?", text3 := "NVCPL Caché", text4 := "Recharger", text5 := "Quitter"
 		}
-		return [text1, text2, text3, text4, text5]
 	}
 	if ( sect = "Program_Exit" ) {
 		if ( lang = "EN" ) {
@@ -465,7 +448,6 @@ Get_Translation(sect, lang, ctrlName="") {
 		if ( lang = "FR" ){
 			text1 := "Souhaitez-vous vraiment fermer " programName "?"
 		}
-		return text1
 	}
 	if ( sect = "Check_nvStatic") {
 		if ( lang = "EN" ) {
@@ -474,8 +456,14 @@ Get_Translation(sect, lang, ctrlName="") {
 		if ( lang = "FR" ) {
 			text1 := "Vérification du control en cours.", text2 := " Echouées."
 		}
-		return [text1, text2]
 	}
+	textArray := []
+	Loop {
+		if ( text%A_Index% <> "" )
+			textArray.InsertAt(A_Index, text%A_Index%)
+		else break
+	}
+	return textArray
 }
 
 Set_Translation(sect, lang, handlers, trans) {
@@ -541,8 +529,8 @@ Update_Startup_Shortcut() {
 
 Program_TrayTip() {
 ;			Show a tray tip upon successful launch to notify the user
-	trans := Get_Translation("Tray_Tip", programLang)
-	TrayTip,% programName " v" programVersion,% trans
+	transArray := Get_Translation("Tray_Tip", programLang)
+	TrayTip,% programName " v" programVersion,% transArray[1]
 }
 
 WM_MOUSEMOVE() {
@@ -583,8 +571,8 @@ Exit_Func(ExitReason, ExitCode) {
 		Process, Close, nvcplui.exe
 	}
 	else {
-		trans := Get_Translation("Program_Exit", programLang)
-        MsgBox, 4, % programName,% trans
+		transArray := Get_Translation("Program_Exit", programLang)
+        MsgBox, 4, % programName,% transArray[1]
         IfMsgBox, No
             return 1  ; OnExit functions must return non-zero to prevent exit.
 		Process, Close, nvcplui.exe
@@ -658,6 +646,18 @@ Check_Update(auto) {
 ;			then closing the current instancie and renaming the new version
 	static
 	updaterPath := "gvUpdater.exe"
+	beta := 0
+	
+	if ( beta ) {
+		updaterDL := "https://raw.githubusercontent.com/lemasato/Beta-Stuff/master/Game-Vivifier/Updater.exe"
+		versionDL := "https://raw.githubusercontent.com/lemasato/Beta-Stuff/master/Game-Vivifier/version.txt"
+	}
+	else {
+		programDL := "https://raw.githubusercontent.com/lemasato/Game-Vivifier/master/Game%20Vivifier.exe"
+		updaterDL := "https://raw.githubusercontent.com/lemasato/Game-Vivifier/master/Updater.exe"
+		versionDL := "https://raw.githubusercontent.com/lemasato/Game-Vivifier/master/version.txt"
+	}
+	
 ;	Delete files remaining from updating
 	if (FileExist(updaterPath))
 		FileDelete,% updaterPath
@@ -669,7 +669,7 @@ Check_Update(auto) {
 ;	Retrieve the version number
 	ComObjError(0)
 	whr := ComObjCreate("WinHttp.WinHttpRequest.5.1")
-	whr.Open("GET", "https://raw.githubusercontent.com/lemasato/Game-Vivifier/master/version.txt", true)
+	whr.Open("GET", versionDL, true)
 	whr.Send()
 	; Using 'true' above and the call below allows the script to remain responsive.
 	whr.WaitForResponse(10) ; 10 seconds
@@ -679,10 +679,10 @@ Check_Update(auto) {
 	}
 	else newVersion := programVersion ; couldn't reach the file, cancel update
 	if ( programVersion <> newVersion )
-		Gui_Update(auto, newVersion, updaterPath)
+		Gui_Update(auto, newVersion, updaterPath, updaterDL)
 }
 
-Gui_Update(auto, newVersion, updaterPath) {
+Gui_Update(auto, newVersion, updaterPath, updaterDL) {
 	static
 	if ( auto = 1 ) {
 		GoSub Gui_Update_Accept
@@ -717,7 +717,7 @@ Gui_Update(auto, newVersion, updaterPath) {
 		if ( autoUpdate )
 			IniWrite, 1,% iniFilePath,SETTINGS,AutoUpdate
 		IniWrite,% A_ScriptName,% iniFilePath,SETTINGS,FileName
-		UrlDownloadToFile,% "https://raw.githubusercontent.com/lemasato/Game-Vivifier/master/Updater.exe",% updaterPath
+		UrlDownloadToFile,% updaterDL,% updaterPath
 		sleep 1000
 		Run, % updaterPath
 		Process, close, %programPID%
@@ -805,7 +805,7 @@ Gui_LangSelect() {
 ;
 ;==================================================================================================================
 
-Get_Control_From_User(ctrlName) {
+Gui_Get_Control(ctrlName) {
 ;			Ask the user to click on a specific button so we can retrieve its control ID
 	static
 	global ctrlRetrieved, ctrlRetrievedText
@@ -901,7 +901,9 @@ Gui_About() {
 	Gui, Add, Text, x10 y10 w250 hwndhandler1 ; Hello, thank you for...
 	Gui, Add, Text, x10 y35 w430 h50 hwndhandler2 ; It allows NVIDIA GPU owners to...
 	Gui, Add, Text, x10 y75 w430 h50 hwndhandler3 ; If you would like to get started, ...
-	Gui, Add, Text, x10 y130 w250 cBlue gGui_About_Thread hwndhandler4 ; Click to visit...
+	Gui, Add, Link, x10 y130 w250 hwndhandler4
+	Gui, Add, Link, x10 y145 w250 hwndhandler5
+	;~ Gui, Add, Text, x10 y130 w250 cBlue gGui_About_Thread hwndhandler4 ; Click to visit...
 	if !( FileExist( A_Temp "\gvpaypaldonatebutton.png" ) ) {
 		UrlDownloadToFile, % "https://www.paypalobjects.com/en_US/i/btn/btn_donate_SM.gif", % A_Temp "\gvpaypaldonatebutton.png"
 		if ( ErrorLevel )
@@ -922,10 +924,6 @@ Gui_About() {
 	WinWait, ahk_id %aboutGuiHandler%
 	WinWaitClose, ahk_id %aboutGuiHandler%
 	return
-	
-	Gui_About_Thread:
-		Run, % "https://autohotkey.com/boards/viewtopic.php?t=9455"
-	return
 
 	Gui_About_Donate:
 		Run, % "https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=E9W692RF9ZLYA"
@@ -944,20 +942,20 @@ Gui_About() {
 Gui_Settings:
 	FR_helpMe_TT := "Liste de gauche" A_Tab . A_Tab "Programmes en cours.`n"
 		. "Liste de droite" A_Tab . A_Tab "Programmes ajoutés à vos favoris.`n`n"
-		. "Rafraîchir" A_Tab . A_Tab "Rafraîchit la liste des programmes en cours`n"
-		. ">" A_Tab . A_Tab . A_Tab  "Ajoute le programme selectionné à vos favoris.`n"
-		. "<" A_Tab . A_Tab . A_Tab  "Supprime le favori selectionné.`n`n"
+		. "Actualiser" A_Tab . A_Tab "Rafraîchit la liste des programmes en cours`n"
+		. "->" A_Tab . A_Tab . A_Tab  "Ajoute le programme selectionné à vos favoris.`n"
+		. "<-" A_Tab . A_Tab . A_Tab  "Supprime le favori selectionné.`n`n"
 		. "Une fois qu'un programme a été ajouté à vos favoris,`n"
 		. "sélectionnez-le et ajustez les curseurs à vos envies.`n"
-		. "Les préférences sont sauvegardées instantanément"
+		. "Les préférences sont sauvegardées instantanément."
 		
 	EN_helpMe_TT := "Left list" A_Tab . A_Tab "Currently running programs.`n"
 		. "Right list" A_Tab A_Tab "Programs added to your favourites.`n`n"
 		. "Refresh" A_Tab . A_Tab "Refresh the currently running programs list.`n"
-		. ">" A_Tab . A_Tab "Add selected program to your favourites.`n"
-		. "<" A_Tab . A_Tab "Remove selected favourite from the list.`n`n"
+		. "->" A_Tab . A_Tab "Add selected program to your favourites.`n"
+		. "<-" A_Tab . A_Tab "Remove selected favourite from the list.`n`n"
 		. "Once a program was added to your favourite,`n"
-		. "select it and adjust the sliders to your feeling.`n"
+		. "select it and adjust the sliders to your will.`n"
 		. "Preferences are instantly saved."
 	;		Top Settings	
 	Gui, Settings:Destroy
@@ -974,9 +972,9 @@ Gui_Settings:
 	Gui, Add, ListBox, x340 y60 w250 h300 vrightListItem gGui_Settings_Right_List_Event Sort
 	;		Middle Buttons
 	Gui, Add, Button, x260 y59 w80 h40 gGui_Settings_Detect_Hidden vdetectHidden hwndhandler4 ; Hidden Windows
-	Gui, Add, Button, x260 y155 w80 h30 gGui_Settings_Right_Arrow,>
+	Gui, Add, Button, x260 y155 w80 h30 gGui_Settings_Right_Arrow,->
 	Gui, Add, Button, x260 y185 w80 h40 gGui_Settings_Refresh_Both_Lists hwndhandler5 ; Refresh
-	Gui, Add, Button, x260 y225 w80 h30 gGui_Settings_Left_Arrow,<
+	Gui, Add, Button, x260 y225 w80 h30 gGui_Settings_Left_Arrow,<-
 	Gui, Add, Button, x260 y311 w80 h40 vhelpMe hwndhandler6 ; Help?
 	;		Gamma Slider
 	IniRead,gammaDefault,% iniFilePath,DEFAULT,Gamma
@@ -1202,3 +1200,162 @@ Gui, Settings:Destroy
 OnMessage(0x200,"WM_MOUSEMOVE", 0)
 ToolTip,
 return
+
+;==================================================================================================================
+;
+;																															NvAPI Class by jNizM
+;
+;			Thread https://autohotkey.com/boards/viewtopic.php?f=6&t=5508
+;			GitHub: https://github.com/jNizM/AHK_NVIDIA_NvAPI
+;
+;==================================================================================================================
+
+class NvAPI
+{
+    static DllFile := (A_PtrSize = 8) ? "nvapi64.dll" : "nvapi.dll"
+    static hmod
+    static init := NvAPI.ClassInit()
+    static DELFunc := OnExit(ObjBindMethod(NvAPI, "_Delete"))
+
+    static NVAPI_GENERIC_STRING_MAX   := 4096
+    static NVAPI_MAX_LOGICAL_GPUS     :=   64
+    static NVAPI_MAX_PHYSICAL_GPUS    :=   64
+    static NVAPI_MAX_VIO_DEVICES      :=    8
+    static NVAPI_SHORT_STRING_MAX     :=   64
+
+    static ErrorMessage := False
+
+    ClassInit()
+    {
+        if !(NvAPI.hmod := DllCall("LoadLibrary", "Str", NvAPI.DllFile, "UPtr"))
+        {
+            MsgBox, 16, % A_ThisFunc, % "LoadLibrary Error: " A_LastEror
+            ExitApp
+        }
+        if (NvStatus := DllCall(DllCall(NvAPI.DllFile "\nvapi_QueryInterface", "UInt", 0x0150E828, "CDECL UPtr"), "CDECL") != 0)
+        {
+            MsgBox, 16, % A_ThisFunc, % "NvAPI_Initialize Error: " NvStatus
+            ExitApp
+        }
+    }
+	
+; ###############################################################################################################################
+
+    EnumNvidiaDisplayHandle(thisEnum := 0)
+    {
+        static EnumNvidiaDisplayHandle := DllCall(NvAPI.DllFile "\nvapi_QueryInterface", "UInt", 0x9ABDD40D, "CDECL UPtr")
+        if !(NvStatus := DllCall(EnumNvidiaDisplayHandle, "UInt", thisEnum, "UInt*", pNvDispHandle, "CDECL"))
+            return pNvDispHandle
+        return "*" NvStatus
+    }
+
+; ###############################################################################################################################
+
+    GetAssociatedNvidiaDisplayHandle(thisEnum := 0)
+    {
+        static GetAssociatedNvidiaDisplayHandle := DllCall(NvAPI.DllFile "\nvapi_QueryInterface", "UInt", 0x35C29134, "CDECL UPtr")
+        szDisplayName := NvAPI.GetAssociatedNvidiaDisplayName(thisEnum)
+        if !(NvStatus := DllCall(GetAssociatedNvidiaDisplayHandle, "AStr", szDisplayName, "Int*", pNvDispHandle, "CDECL"))
+            return pNvDispHandle
+        return NvAPI.GetErrorMessage(NvStatus)
+    }
+
+; ###############################################################################################################################
+
+    GetAssociatedNvidiaDisplayName(thisEnum := 0)
+    {
+        static GetAssociatedNvidiaDisplayName := DllCall(NvAPI.DllFile "\nvapi_QueryInterface", "UInt", 0x22A78B05, "CDECL UPtr")
+        NvDispHandle := NvAPI.EnumNvidiaDisplayHandle(thisEnum)
+        VarSetCapacity(szDisplayName, NvAPI.NVAPI_SHORT_STRING_MAX, 0)
+        if !(NvStatus := DllCall(GetAssociatedNvidiaDisplayName, "Ptr", NvDispHandle, "Ptr", &szDisplayName, "CDECL"))
+            return StrGet(&szDisplayName, "CP0")
+        return NvAPI.GetErrorMessage(NvStatus)
+    }
+
+; ###############################################################################################################################
+
+    GetDVCInfo(outputId := 0)
+    {
+        static GetDVCInfo := DllCall(NvAPI.DllFile "\nvapi_QueryInterface", "UInt", 0x4085DE45, "CDECL UPtr")
+        static NV_DISPLAY_DVC_INFO := 16
+        hNvDisplay := NvAPI.EnumNvidiaDisplayHandle()
+        VarSetCapacity(pDVCInfo, NV_DISPLAY_DVC_INFO), NumPut(NV_DISPLAY_DVC_INFO | 0x10000, pDVCInfo, 0, "UInt")
+        if !(NvStatus := DllCall(GetDVCInfo, "Ptr", hNvDisplay, "UInt", outputId, "Ptr", &pDVCInfo, "CDECL"))
+        {
+            DVC := {}
+            DVC.version      := NumGet(pDVCInfo,  0, "UInt")
+            DVC.currentLevel := NumGet(pDVCInfo,  4, "UInt")
+            DVC.minLevel     := NumGet(pDVCInfo,  8, "UInt")
+            DVC.maxLevel     := NumGet(pDVCInfo, 12, "UInt")
+            return DVC
+        }
+        return NvAPI.GetErrorMessage(NvStatus)
+    }
+
+; ###############################################################################################################################
+
+    GetDVCInfoEx(thisEnum := 0, outputId := 0)
+    {
+        static GetDVCInfoEx := DllCall(NvAPI.DllFile "\nvapi_QueryInterface", "UInt", 0x0E45002D, "CDECL UPtr")
+        static NV_DISPLAY_DVC_INFO_EX := 20
+        hNvDisplay := NvAPI.GetAssociatedNvidiaDisplayHandle(thisEnum)
+        VarSetCapacity(pDVCInfo, NV_DISPLAY_DVC_INFO_EX), NumPut(NV_DISPLAY_DVC_INFO_EX | 0x10000, pDVCInfo, 0, "UInt")
+        if !(NvStatus := DllCall(GetDVCInfoEx, "Ptr", hNvDisplay, "UInt", outputId, "Ptr", &pDVCInfo, "CDECL"))
+        {
+            DVC := {}
+            DVC.version      := NumGet(pDVCInfo,  0, "UInt")
+            DVC.currentLevel := NumGet(pDVCInfo,  4, "Int")
+            DVC.minLevel     := NumGet(pDVCInfo,  8, "Int")
+            DVC.maxLevel     := NumGet(pDVCInfo, 12, "Int")
+            DVC.defaultLevel := NumGet(pDVCInfo, 16, "Int")
+            return DVC
+        }
+        return NvAPI.GetErrorMessage(NvStatus)
+    }
+
+; ###############################################################################################################################
+
+    GetErrorMessage(ErrorCode)
+    {
+        static GetErrorMessage := DllCall(NvAPI.DllFile "\nvapi_QueryInterface", "UInt", 0x6C2D048C, "CDECL UPtr")
+        VarSetCapacity(szDesc, NvAPI.NVAPI_SHORT_STRING_MAX, 0)
+        if !(NvStatus := DllCall(GetErrorMessage, "Ptr", ErrorCode, "WStr", szDesc, "CDECL"))
+            return this.ErrorMessage ? "Error: " StrGet(&szDesc, "CP0") : "*" ErrorCode
+        return NvStatus
+    }
+
+; ###############################################################################################################################
+
+    SetDVCLevel(level, outputId := 0)
+    {
+        static SetDVCLevel := DllCall(NvAPI.DllFile "\nvapi_QueryInterface", "UInt", 0x172409B4, "CDECL UPtr")
+        hNvDisplay := NvAPI.EnumNvidiaDisplayHandle()
+        if !(NvStatus := DllCall(SetDVCLevel, "Ptr", hNvDisplay, "UInt", outputId, "UInt", level, "CDECL"))
+            return level
+        return NvAPI.GetErrorMessage(NvStatus)
+    }
+
+; ###############################################################################################################################
+
+    SetDVCLevelEx(currentLevel, thisEnum := 0, outputId := 0)
+    {
+        static SetDVCLevelEx := DllCall(NvAPI.DllFile "\nvapi_QueryInterface", "UInt", 0x4A82C2B1, "CDECL UPtr")
+        static NV_DISPLAY_DVC_INFO_EX := 20
+        hNvDisplay := NvAPI.GetAssociatedNvidiaDisplayHandle(thisEnum)
+        VarSetCapacity(pDVCInfo, NV_DISPLAY_DVC_INFO_EX)
+        , NumPut(NvAPI.GetDVCInfoEx(thisEnum).version,      pDVCInfo,  0, "UInt")
+        , NumPut(currentLevel,                              pDVCInfo,  4, "Int")
+        , NumPut(NvAPI.GetDVCInfoEx(thisEnum).minLevel,     pDVCInfo,  8, "Int")
+        , NumPut(NvAPI.GetDVCInfoEx(thisEnum).maxLevel,     pDVCInfo, 12, "Int")
+        , NumPut(NvAPI.GetDVCInfoEx(thisEnum).defaultLevel, pDVCInfo, 16, "Int")
+        return DllCall(SetDVCLevelEx, "Ptr", hNvDisplay, "UInt", outputId, "Ptr", &pDVCInfo, "CDECL")
+    }
+
+; ###############################################################################################################################
+
+    _Delete()
+    {
+        DllCall(DllCall(NvAPI.DllFile "\nvapi_QueryInterface", "UInt", 0xD22BDD7E, "CDECL UPtr"), "CDECL")
+        DllCall("FreeLibrary", "Ptr", NvAPI.hmod)
+    }
+}
