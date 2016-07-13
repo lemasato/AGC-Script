@@ -1,5 +1,5 @@
 v2.0.12
-	Removed a line that was used in beta
+	Removed beta leftovers
 
 v2.0.11
 	Added Class_NvAPI (by jNizM) support! 
