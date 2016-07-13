@@ -652,7 +652,6 @@ Check_Update(auto) {
 		versionDL := "https://raw.githubusercontent.com/lemasato/Beta-Stuff/master/Game-Vivifier/version.txt"
 	}
 	else {
-		programDL := "https://raw.githubusercontent.com/lemasato/Game-Vivifier/master/Game%20Vivifier.exe"
 		updaterDL := "https://raw.githubusercontent.com/lemasato/Game-Vivifier/master/Updater.exe"
 		versionDL := "https://raw.githubusercontent.com/lemasato/Game-Vivifier/master/version.txt"
 	}
