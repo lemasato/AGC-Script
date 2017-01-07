@@ -7,14 +7,14 @@
 
 OnExit("Exit_Func")
 #SingleInstance Off
-;~ #SingleInstance Force ; uncomment this line when using .ahk version
+#SingleInstance Force ; uncomment this line when using .ahk version
 SetWorkingDir, %A_ScriptDir%
 ;===============================
 
 ;___Some variables___;
 global userprofile
 EnvGet, userprofile, userprofile
-global programVersion := "2.0.12" , programName := "Game Vivifier", programLang
+global programVersion := "2.0.13" , programName := "Game Vivifier", programLang
 global iniFilePath := userprofile "\Documents\AutoHotKey\" programName "\Preferences.ini"
 global nvHandler, nvPath, nvStatic, nvStaticText, programPID
 
@@ -51,7 +51,7 @@ ShellMessage( wParam,lParam )
 		WinGet, winEXE, ProcessName, ahk_id %lParam%
 		if ( winExe <> "autohotkey.exe" && winExe <> "nvcplui.exe" && winExe <> A_ScriptName) {
 			userPrefs := Get_Preferences_From_Ini(winEXE) ; [gamma, vibrance, gammaDef, vibranceDef]
-			Switch(winEXE, winTitle, userPrefs[1], userPrefs[2], userPrefs[3], userPrefs[4])
+			Switch(winEXE, winTitle, userPrefs[1], userPrefs[2], userPrefs[3], userPrefs[4], userPrefs[5])
 		}
 	}
 }
@@ -62,7 +62,7 @@ ShellMessage( wParam,lParam )
 ;
 ;==================================================================================================================
 
-Switch(process, title, gVal, cVal, gDef, cDef) {
+Switch(process, title, gVal, cVal, gDef, cDef, monitorID=0) {
 ;			Apply gamma/vibrance preferences.
 ;			Values are minus one because we press RIGHT (+1) to register the message.
 ;			If fullscreen application is detected, send the message 10 times with 2s delay.
@@ -70,11 +70,17 @@ Switch(process, title, gVal, cVal, gDef, cDef) {
 
 	DetectHiddenWindows, On
 	if !( WinExist("ahk_id " handler ) ) { ; User most likely closed the window
+		timer := 3
+		Loop 3 {
+			TrayTip,% programName " couldn't find`nNVCPL window's handler`n`nThe program will restart in " timer "..."
+			sleep 1000
+			timer--
+		}
 		Reload_Func()
 	}
 	PostMessage, 0x0405,0,% gVal -1,msctls_trackbar323, ahk_id %handler%
 	ControlSend,msctls_trackbar323, {Blind}{Right}, ahk_id %handler%
-	NvApi.SetDVCLevelEx(cVal)
+	NvApi.SetDVCLevelEx(cVal, monitorID)
 	isFullscreen := Is_Window_Fullscreen(process, title)
 	if ( isFullScreen ) && ( ( gVal <> gDef  ) || ( cVal <> cDef ) ) {
 		waitSec := A_Sec+5, times := 0
@@ -88,7 +94,7 @@ Switch(process, title, gVal, cVal, gDef, cDef) {
 					ControlSend,msctls_trackbar323, {Blind}{Right 2}, ahk_id %handler%
 					PostMessage, 0x0405,0,% gVal -1,msctls_trackbar323, ahk_id %handler%
 					ControlSend,msctls_trackbar323, {Blind}{Right}, ahk_id %handler%
-					NvApi.SetDVCLevelEx(cVal)
+					NvApi.SetDVCLevelEx(cVal, monitorID)
 					waitSec := A_Sec+5, times++
 			}
 			sleep 100
@@ -156,6 +162,12 @@ Get_Settings_From_Ini() {
 		IniRead, staticCtrlText,% path,SETTINGS,AdjustDesktopCtrlText
 	}
 	
+	IniRead, defaultMonitor,% iniFilePath,SETTINGS,Monitor_ID
+	if ( defaultMonitor = "ERROR" || defaultMonitor = "" ) {
+		IniWrite,% "0",% iniFilePath,SETTINGS,Monitor_ID
+		IniRead, defaultMonitor,% iniFilePath,SETTINGS,Monitor_ID
+	}
+	
 	return [runHidden, auto, lang, staticCtrl, staticCtrlText]
 }
 
@@ -189,7 +201,9 @@ Get_Preferences_From_Ini(process) {
 		gamma := 100
 	if ( vibrance = "ERROR" || vibrance ="" )
 		vibrance := 50
-	return [gamma, vibrance, gammaDef, vibranceDef]
+	
+	IniRead, defaultMonitor,% iniFilePath,SETTINGS,Monitor_ID
+	return [gamma, vibrance, gammaDef, vibranceDef, defaultMonitor]
 } 
 
 Get_NVCPL_Path() {
@@ -371,11 +385,11 @@ Get_Translation(sect, lang, ctrlName="") {
 	if ( sect = "Gui_Settings" ) {
 		if ( lang = "EN" ) {
 			text1 := "Run the program on system startup?", text2 := "Language:", text3 := "|EN-English|FR-French", text4 := "Hidden`nWindows", text5 := "Refresh"
-			text6 := "Help?", text7 := "Gamma", text8 := "Default", text9 := "Vibrance", text10 := "Default"
+			text6 := "Help?", text7 := "Gamma", text8 := "Default", text9 := "Vibrance", text10 := "Default", text11 := "Monitor ID:"
 		}
 		if ( lang = "FR" ) {
 			text1 := "Démarrer le programme au démarrage?", text2 := "Langue:", text3 := "|EN-Anglais|FR-Français", text4 := "Fenètres`nCachées", text5 := "Actualiser"
-			text6 := "Aide?", text7 := "Gamma", text8 := "Défaut", text9 := "Vibrance", text10 := "Défaut"
+			text6 := "Aide?", text7 := "Gamma", text8 := "Défaut", text9 := "Vibrance", text10 := "Défaut", text11 := "ID Écran:"
 		}
 	}
 	if ( sect = "Gui_About" ) {
@@ -395,14 +409,16 @@ Get_Translation(sect, lang, ctrlName="") {
 	}
 	if ( sect = "Gui_Update" ) {
 		if ( lang = "EN" ) {
-			text1 := "A new version was released!`nWould you like to update now?"
-			text2 := "Now", text3 := "Later", text4 := "Open the download page"
-			text5 := "Update automatically"
+			text1 := "Would you like to update now?"
+			text2 := "The process is automatic, only your permission is required."
+			text3 := "Accept", text4 := "Refuse", text5 := "Open the download page"
+			text6 := "Receive updates automatically from now"
 		}
 		if ( lang = "FR" ) {
-			text1 := "Une nouvelle version est sortie!`nMettre à jour maintenant?"
-			text2 := "Maintenant", text3 := "Plus tard", text4 := "Ouvrir la page de téléchargement"
-			text5 := "Mettre à jour automatiquement"
+			text1 := "Voudriez-vous mettre à jour maintenant?"
+			text2 := "Le procédé est auto, seule votre permission est requise."
+			text3 := "Accepter", text4 := "Refuser", text5 := "Ouvrir la page de téléchargement"
+			text6 := "Recevoir les prochaines mises à jour automatiquement"
 		}
 	}
 	if ( sect = "Gui_Get_Control" ) {
@@ -689,11 +705,12 @@ Gui_Update(auto, newVersion, updaterPath, updaterDL) {
 	Gui, Update:Destroy
 	Gui, Update:New, +AlwaysOnTop +SysMenu -MinimizeBox -MaximizeBox +OwnDialogs +HwndUpdateGuiHwnd,% "Update! v" newVersion
 	Gui, Update:Default
-	Gui, Add, Text, x10 y10 w150 h30 hwndhandler1 ; A new version was found...
-	Gui, Add, Button, x10 y50 w70 h40 gGui_Update_Accept hwndhandler2 ; Yeah Update
-	Gui, Add, Button, x95 y50 w70 h40 gGui_Update_Refuse hwndhandler3 ; No Later
-	Gui, Add, Button, x10 y100 w155 h40 gGui_Update_Open_Page hwndhandler4 ; Open download page
-	Gui, Add, CheckBox, x10 y150 w150 h30 vautoUpdate hwndhandler5 ; Update automatically...
+	Gui, Add, Text, x70 y10 hwndhandler1 w220,Would you like to update now?
+	Gui, Add, Text, x10 y30 hwndhandler2 w280,The process is automatic, only your permission is required.
+	Gui, Add, Button, x10 y55 w135 h35 gGui_Update_Accept hwndhandler3,Accept
+	Gui, Add, Button, x145 y55 w135 h35 gGui_Update_Refuse hwndhandler4,Refuse
+	Gui, Add, Button, x10 y95 w270 h40 gGui_Update_Open_Page hwndhandler5,Open the download page ; Open download page
+	Gui, Add, CheckBox, x10 y150 w260 h30 vautoUpdate hwndhandler6,Update automatically from now ; Update automatically...
 	
 	handlersArray := []
 	Loop  {
@@ -938,7 +955,8 @@ Gui_About() {
 ;==================================================================================================================
 
 Gui_Settings:
-	FR_helpMe_TT := "Liste de gauche" A_Tab . A_Tab "Programmes en cours.`n"
+	FR_helpMe_TT := "ID Écran: Changer cette value si les préférences ne sont pas appliquées sur le bon écran.`n`n"
+		. "Liste de gauche" A_Tab . A_Tab "Programmes en cours.`n"
 		. "Liste de droite" A_Tab . A_Tab "Programmes ajoutés à vos favoris.`n`n"
 		. "Actualiser" A_Tab . A_Tab "Rafraîchit la liste des programmes en cours`n"
 		. "->" A_Tab . A_Tab . A_Tab  "Ajoute le programme selectionné à vos favoris.`n"
@@ -947,7 +965,8 @@ Gui_Settings:
 		. "sélectionnez-le et ajustez les curseurs à vos envies.`n"
 		. "Les préférences sont sauvegardées instantanément."
 		
-	EN_helpMe_TT := "Left list" A_Tab . A_Tab "Currently running programs.`n"
+	EN_helpMe_TT := "Monitor ID: Change this value if the preferences are not being set to the rigt monitor.`n`n"
+		. "Left list" A_Tab . A_Tab "Currently running programs.`n"
 		. "Right list" A_Tab A_Tab "Programs added to your favourites.`n`n"
 		. "Refresh" A_Tab . A_Tab "Refresh the currently running programs list.`n"
 		. "->" A_Tab . A_Tab "Add selected program to your favourites.`n"
@@ -965,6 +984,11 @@ Gui_Settings:
 		GuiControl, Settings:,runOnStartup,1
 	Gui, Add, Text, x10 y35 w50 hwndhandler2 ; Language:
 	Gui, Add, DropDownList, x70 y30 vlangListItem gGui_Settings_Langs_List_Event hwndhandler3 ; EN-FR
+	;		Monitor ID
+	IniRead, monID,% iniFilePath,SETTINGS,Monitor_ID
+	Gui, Add, Text, x340 y30 w55 hwndhandler11,
+	Gui, Add, Edit, xp+60 yp-3 w45 vMonitorID gGui_Settings_Apply,% monID
+	Gui, Add, UpDown, Range0-100,% monID
 	;		Left and Right boxes
 	Gui, Add, ListBox, x10 y60 w250 h300 vleftListItem Sort
 	Gui, Add, ListBox, x340 y60 w250 h300 vrightListItem gGui_Settings_Right_List_Event Sort
@@ -992,7 +1016,7 @@ Gui_Settings:
 	Gui, Add, Text, x410 y384 w35 hwndhandler10 ; Default
 	Gui, Add, Edit, x453 y380 w45 vvibranceDefault gGui_Settings_Slider_Event, %vibranceDefault%
 	Gui, Add, UpDown, Range-0-100 gGui_Settings_Slider_Event, %vibranceDefault%
-	
+
 	handlersArray := []
 	Loop  {
 		item := handler%A_Index%
@@ -1005,6 +1029,7 @@ Gui_Settings:
 	transArray := Get_Translation("Gui_Settings", programLang)
 	Set_Translation("Gui_Settings", programLang, handlersArray, transArray)
 	OnMessage(0x200,"WM_MOUSEMOVE", 1)
+	guiSettingsCreated := 1
 return
 
 
@@ -1043,7 +1068,9 @@ return
 Gui_Settings_Slider_Event:
 ;			Make sure the slider and the editbox match the same value
 	Gui, Submit, NoHide
-	GoSub Gui_Settings_Apply
+	if ( rightListExe && guiSettingsCreated )
+		GoSub Gui_Settings_Apply
+;~ msgbox,% gammaValue "`n" vibranceValue "`n" winExe
 return
 
 
@@ -1182,12 +1209,14 @@ Gui_Settings_Apply:
 		IniWrite, % vibranceDefault, % iniFilePath,DEFAULT,Vibrance
 	}
 	IniWrite, % runOnStartup, % iniFilePath,SETTINGS,RunOnStartup	
+	IniWrite, % monitorID, % iniFilePath,SETTINGS,Monitor_ID	
 	Update_Startup_Shortcut()
 return
 
 
 Gui_Settings_Close:
 Gui, Settings:Destroy
+guiSettingsCreated := 0
 OnMessage(0x200,"WM_MOUSEMOVE", 0)
 ToolTip,
 return
@@ -1195,6 +1224,7 @@ return
 
 Gui_Settings_Escape:
 Gui, Settings:Destroy
+guiSettingsCreated := 0
 OnMessage(0x200,"WM_MOUSEMOVE", 0)
 ToolTip,
 return

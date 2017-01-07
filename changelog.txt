@@ -1,3 +1,8 @@
+v2.0.13
+	You can now change the default monitor in the [Settings] menu
+	Fixed a bug where the newest setting would sometimes be reverted back to default upon opening the tray [Settings] menu
+	Changes were made to the look of the Update GUI
+	
 v2.0.12
 	Removed beta leftovers
 
