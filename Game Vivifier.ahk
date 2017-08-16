@@ -1,41 +1,38 @@
 /* 
-	Game Vivifier by masato
+	Game Vivifier by lemasato
 	Allows NVIDIA users to have custom gamma/vibrance profiles for their game
 	https://autohotkey.com/boards/viewtopic.php?t=9455
 	https://github.com/lemasato/Game-Vivifier
+
+	TODO: 	GUI_Settings()
+			Switch()
+			ShellMessage()
+				if activeEXE is in %myExe%
+					do the switch thing
+
+			Test NVCPL_Check_Control_Valid()
+			Test Gui_Get_Control()
+
+			Include translation file
+			Include icon file, for notifications
+			Edit nofitications function for icon
 */
 
+#Warn LocalSameAsGlobal, StdOut
 OnExit("Exit_Func")
 #SingleInstance Off
-#SingleInstance Force ; uncomment this line when using .ahk version
+#Persistent
+#NoEnv
 SetWorkingDir, %A_ScriptDir%
-;===============================
+FileEncoding, UTF-8 ; Required for cyrillic characters
+#KeyHistory 0
+SetWinDelay, 0
+DetectHiddenWindows, Off
+ListLines, Off
 
-;___Some variables___;
-global userprofile
-EnvGet, userprofile, userprofile
-global programVersion := "2.0.13" , programName := "Game Vivifier", programLang
-global iniFilePath := userprofile "\Documents\AutoHotKey\" programName "\Preferences.ini"
-global nvHandler, nvPath, nvStatic, nvStaticText, programPID
-
-;___Creating .ini Dir___;
-if !( InStr(FileExist("\Documents\AutoHotkey"), "D") )
-	FileCreateDir, % userprofile "\Documents\AutoHotkey"
-if !( InStr(FileExist("\Documents\AutoHotkey\" programName ), "D") )
-	FileCreateDir, % userprofile "\Documents\AutoHotkey\" programName
-
-;___Functions calls___;
-Prevent_Multiple_Instancies()
-settingsArray := Get_Settings_From_Ini()
-runHidden := settingsArray[1], autoUpdate := settingsArray[2], programLang := settingsArray[3], nvStatic := settingsArray[4], nvStaticText := settingsArray[5], settingsArray := ""
-Create_Tray_Menu(programLang)
-Update_Startup_Shortcut()
-Check_Update(autoUpdate)
-nvPath := Get_NVCPL_Path()
-nvHandler := Run_NVCPL()
-Check_nvStatic_Valid()
-nvHandler := Run_NVCPL(1)
-Program_TrayTip()
+Menu, Tray, Tip,Game Vivifier
+Menu,Tray,NoStandard
+Menu,Tray,Add,Close,Exit_Func
 
 ;___Window Switch Detect___;
 Gui +LastFound 
@@ -43,1347 +40,2135 @@ Hwnd := WinExist()
 DllCall( "RegisterShellHookWindow", UInt,Hwnd )
 MsgNum := DllCall( "RegisterWindowMessage", Str,"SHELLHOOK" )
 OnMessage( MsgNum, "ShellMessage" )
-return
 
-ShellMessage( wParam,lParam )
-{
-	if ( wParam=4 or wParam=32772 ) { ; 4=HSHELL_WINDOWACTIVATED | 32772=HSHELL_RUDEAPPACTIVATED
-		WinGet, winEXE, ProcessName, ahk_id %lParam%
-		if ( winExe <> "autohotkey.exe" && winExe <> "nvcplui.exe" && winExe <> A_ScriptName) {
-			userPrefs := Get_Preferences_From_Ini(winEXE) ; [gamma, vibrance, gammaDef, vibranceDef]
-			Switch(winEXE, winTitle, userPrefs[1], userPrefs[2], userPrefs[3], userPrefs[4], userPrefs[5])
+Start_Script()
+Return
+
+Start_Script() {
+/*
+*/
+	global ProgramValues 				:= {}
+	global ProgramSettings 				:= {}
+	global NVIDIA_Values				:= {}
+	global GameProfiles 				:= {}
+;	main infos
+	ProgramValues.Name 					:= "Game Vivifier"
+	ProgramValues.Version 				:= "2.1"
+;	folders
+	ProgramValues.Local_Folder 			:= A_MyDocuments "\AutoHotkey\" ProgramValues.Name
+	ProgramValues.Logs_Folder 			:= ProgramValues.Local_Folder "\Logs"
+	ProgramValues.Others_Folder 		:= ProgramValues.Local_Folder "\Others"
+;	updater link
+	ProgramValues.Updater_File 			:= "Game-Vivifier-Updater.exe"
+	ProgramValues.Updater_Link 			:= "https://raw.githubusercontent.com/lemasato/Game-Vivifier/master/Updater_v2.exe"
+;	verion link / changelogs link
+	ProgramValues.Version_Link 			:= "https://raw.githubusercontent.com/lemasato/Game-Vivifier/master/version.txt"
+	ProgramValues.Changelogs_Link 		:= "https://raw.githubusercontent.com/lemasato/Game-Vivifier/master/changelogs.txt"
+;	new version link
+	ProgramValues.NewVersion_File		:= "Game-Vivifier-NewVersion.exe"
+	ProgramValues.NewVersion_Link 		:= "https://raw.githubusercontent.com/lemasato/Game-Vivifier/master/Game Vivifier.exe"
+;	local files
+	ProgramValues.Ini_File 				:= ProgramValues.Local_Folder "\Preferences.ini"
+	ProgramValues.Translations_File		:= ProgramValues.Local_Folder "\Translations.ini"
+	ProgramValues.Changelogs_File 		:= ProgramValues.Logs_Folder "\Changelogs.txt"
+	ProgramValues.Logs_File				:= ProgramValues.Logs_Folder "\DebugLogs.txt"
+	
+	
+
+	ProgramValues.PID 					:= DllCall("GetCurrentProcessId")
+
+	SetWorkingDir,% ProgramValues.Local_Folder
+; - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+;	Directories Creation
+	directories := ProgramValues.Local_Folder
+			; . "`n" ProgramValues.SFX_Folder
+			. "`n" ProgramValues.Logs_Folder
+			; . "`n" ProgramValues.Skins_Folder
+			; . "`n" ProgramValues.Fonts_Folder
+			. "`n" ProgramValues.Others_Folder
+			; . "`n" ProgramValues.Data_Folder
+	Loop, Parse, directories,% "`r`n"
+	{
+		if (!InStr(FileExist(A_LoopField), "D")) {
+			FileCreateDir, % A_LoopField
 		}
+	}
+; - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+	Close_Previous_Program_Instance()
+	Tray_Refresh()
+
+	Update_Local_Settings()
+	Set_Local_Settings()
+	localSettings := Get_Local_Settings()
+	Declare_Local_Settings(localSettings)
+	Extract_Assets()
+
+	Create_Tray_Menu()
+	Update_Startup_Shortcut()
+
+	gameProfilesSettings := Get_GameProfiles_Settings()
+	Declare_GameProfiles_Settings(gameProfilesSettings)
+
+	Check_Update()
+	; NVCPL_Be_Ready()
+	translations := Get_Translations("Tray_Notifications")
+	Tray_Notifications_Show(ProgramValues.Name " v" ProgramValues.Version, translations.MSG_Start), 	translations := ""
+
+	; Gui_Settings()
+	Gui_About()
+}
+
+Extract_Assets() {
+	global ProgramValues
+
+	FileInstall, Resources\Others\icon.ico,% ProgramValues.Others_Folder "\icon.ico", 1
+	FileInstall, Resources\Others\DonatePaypal.png,% ProgramValues.Others_Folder "\DonatePaypal.png", 1
+}
+
+/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * 
+ *					NVIDIA FUNCTIONS
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * 
+*/
+	
+NVCPL_Be_Ready() {
+/*		Gets the NVCPL ready to receive our settings
+*/
+	global NVIDIA_Values
+
+	NVIDIA_Values.Is_Ready := false
+
+;	First retrieve the location
+	NVCPL_Get_Location()
+;	Then run, click on the Adjust Desktop setting and make sure it's the right control
+	NVCPL_Run()
+	NVCPL_Trigger_Control("Adjust_Desktop")
+	NVCPL_Check_Control_Valid()
+;	Finally run again
+	NVCPL_Run()
+	NVCPL_Trigger_Control("Adjust_Desktop")
+	NVCPL_Trigger_Control("Select_Monitor", 0)
+	NVCPL_Trigger_Control("Use_NVIDIA_Settings")
+;	And hide the window
+	WinHide,% "ahk_id " NVIDIA_Values.Handler
+	; WinShow,% "ahk_id " NVIDIA_Values.Handler
+
+	NVIDIA_Values.Is_Ready := true
+}
+
+NVCPL_Get_Location() {
+/*		Retrieve the NVCPL location
+ * 		If unable to find, ask the user to point it
+*/
+	global ProgramSettings, ProgramValues
+
+	translations := Get_Translations("NVCPL_Get_Location")
+	nvPath := ProgramSettings.NVIDIA_PANEL["Location"]
+
+	SplitPath, nvPath, nvPath_fileName
+	; Invalid path. Attempt to get its default location
+	if ( nvPath = "ERROR" || nvPath = "" || !FileExist(nvPath) || nvPath_fileName != "nvcplui.exe" ) {
+		EnvGet, _ProgramFiles, ProgramFiles
+		EnvGet, _ProgramW6432, ProgramW6432
+		EnvGet, _ProgramFiles_X86, ProgramFiles(x86)
+
+		Path_ProgramFiles := _ProgramFiles "\NVIDIA Corporation\Control Panel Client\nvcplui.exe"
+		Path_ProgramW6432 := _ProgramW6432 "\NVIDIA Corporation\Control Panel Client\nvcplui.exe"
+		Path_ProgramFiles_X86 := _ProgramFiles_X86 "\NVIDIA Corporation\Control Panel Client\nvcplui.exe"
+
+		if FileExist(Path_ProgramFiles)
+			new_nvPath := Path_ProgramFiles
+		else if FileExist(Path_ProgramW6432)
+			new_nvPath := Path_ProgramW6432
+		else if FileExist(Path_ProgramFiles_X86)
+			new_nvPath := Path_ProgramFiles_X86
+		else {
+			MsgBox, 0x40030,% ProgramValues.Name,% translations.TXT_FiledToFind
+			FileSelectFile, new_nvPath, 3, %progFiles%, Please go to \NVIDIA Corporation\Control Panel Client\nvcplui.exe, nvcplui.exe
+			if ( ErrorLevel = 1 ) {
+				%A_ThisFunc%()
+			}
+		}
+
+		IniWrite,% """" new_nvPath """",% ProgramValues.Ini_File,NVIDIA_PANEL,Location
+		ProgramSettings.NVIDIA_PANEL["Location"] := new_nvPath
+		Sleep 100
+		%A_ThisFunc%()
 	}
 }
 
-;==================================================================================================================
-;
-;																															FUNCTIONS
-;
-;==================================================================================================================
+NVCPL_Run() {
+/*		Control IDs are generated dynamically as the user goes trough the NVCPL
+ *		Therefore, we have to make sure the first tab clicked is the one we need
+ *		So all the control names can be predicted
+ */
+ 	global ProgramSettings, NVIDIA_Values, ProgramValues
 
-Switch(process, title, gVal, cVal, gDef, cDef, monitorID=0) {
-;			Apply gamma/vibrance preferences.
-;			Values are minus one because we press RIGHT (+1) to register the message.
-;			If fullscreen application is detected, send the message 10 times with 2s delay.
-	handler := nvHandler
+ 	detectHiddenWin := A_DetectHiddenWindows
+ 	DetectHiddenWindows, OFF
 
-	DetectHiddenWindows, On
-	if !( WinExist("ahk_id " handler ) ) { ; User most likely closed the window
-		timer := 3
-		Loop 3 {
-			TrayTip,% programName " couldn't find`nNVCPL window's handler`n`nThe program will restart in " timer "..."
-			sleep 1000
-			timer--
+ 	translations := Get_Translations(A_ThisFunc)
+
+	nvPath 			:= ProgramSettings.NVIDIA_PANEL["Location"]
+	staticCtrl 		:= ProgramSettings.NVIDIA_PANEL["Control_AdjustDesktop"]
+	
+	Process, Exist, nvcplui.exe
+	existingPID := ErrorLevel
+
+	Process, Close, %existingPID%
+	Process, WaitClose, %existingPID%, 5
+	if (ErrorLevel) {
+		NVCPL_Run_Error:
+		isAdmin := A_IsAdmin
+		notAdminMsg := (isAdmin)?(""):("`n`n" translations.TEXT_NoAdmin)
+		MsgBox, 4096,% ProgramValues.Name,% translations.TEXT_CloseFailed notAdminMsg
+		Process, Exist, nvcplui.exe
+		if (ErrorLevel) {
+			Goto NVCPL_Run_Error
 		}
-		Reload_Func()
 	}
-	PostMessage, 0x0405,0,% gVal -1,msctls_trackbar323, ahk_id %handler%
-	ControlSend,msctls_trackbar323, {Blind}{Right}, ahk_id %handler%
-	NvApi.SetDVCLevelEx(cVal, monitorID)
-	isFullscreen := Is_Window_Fullscreen(process, title)
-	if ( isFullScreen ) && ( ( gVal <> gDef  ) || ( cVal <> cDef ) ) {
-		waitSec := A_Sec+5, times := 0
+
+	Run,% nvPath, , Min,nvPID
+	WinWait,% "ahk_pid " nvPID
+	WinGet, nvHandler, ID,% "ahk_pid " nvPID
+	DetectHiddenWindows, %detectHiddenWin%
+
+	NVIDIA_Values.Handler 	:= nvHandler
+	NVIDIA_Values.PID 		:= nvPID
+}
+
+NVCPL_Check_Control_Valid() {
+/*		Verify the "Adjust Desktop" setting.
+		If gamma/vibrance sliders are avaialble, high chances its valid.
+		If not, ask the user to point the control again.
+*/
+	global NVIDIA_Values, ProgramValues, ProgramSettings
+
+	nvHandler 						:= NVIDIA_Values.Handler
+	adjustDesktopCtrl 				:= ProgramSettings.NVIDIA_PANEL.Control_AdjustDesktop
+	adjustDesktopCtrl_Text 			:= ProgramSettings.NVIDIA_PANEL.Control_AdjustDesktopText
+	
+	; Show the NVCPL
+	WinShow,% "ahk_id " nvHandler
+	WinWait,% "ahk_id " nvHandler
+
+	; Retrieve the control text
+	if (adjustDesktopCtrl_Text) {
 		Loop {
-			if ( times >= 6 ) || !( WinActive("ahk_exe" process) )
-				break
-			if ( ( waitSec >= 59 ) && ( A_Sec < 10 ) ) || ( ( waitSec > 50 ) && ( A_Sec < 10 ) )
-				waitSec -= 60
-			if ( A_Sec >= waitSec ) || ( ( A_Sec < 10 ) && ( waitSec > 50 ) ) {
-					PostMessage, 0x0405,0,% gVal -2,msctls_trackbar323, ahk_id %handler%
-					ControlSend,msctls_trackbar323, {Blind}{Right 2}, ahk_id %handler%
-					PostMessage, 0x0405,0,% gVal -1,msctls_trackbar323, ahk_id %handler%
-					ControlSend,msctls_trackbar323, {Blind}{Right}, ahk_id %handler%
-					NvApi.SetDVCLevelEx(cVal, monitorID)
-					waitSec := A_Sec+5, times++
-			}
-			sleep 100
+			ControlGetText, ctrlText,% adjustDesktopCtrl,% "ahk_id " nvHandler
+			if (ctrlText || A_Index > 10)
+				Break
+			Sleep 500
 		}
 	}
-	DetectHiddenWindows, Off
+	; Attempt to retrieve the control automatically
+	if ( (adjustDesktopCtrl = "ERROR" || !adjustDesktopCtrl || adjustDesktopCtrl_Text = "ERROR" || !adjustDesktopCtrl_Text) || (ctrlText && ctrlText != adjustDesktopCtrl_Text)) {
+		ctrlInfos := NVIDIA_Get_Control("Adjust Desktop")
+		adjustDesktopCtrl := ctrlInfos[1], adjustDesktopCtrl_Text := ctrlInfos[2]
+	}
+
+	; Make sure the sliders gamma/vibrance are available on this tab
+	Loop {
+		if (A_Index > 10 ) { ; Too many attempts, try to get it automatically. If fail, the user will have to point it out
+			NVIDIA_Get_Control("Adjust Desktop")
+			%A_ThisFunc%()
+		}
+		if (323_clear && 324_clear) ; Both available, we good to go
+			Break
+
+		ControlClick,% adjustDesktopCtrl,% "ahk_id " nvHandler ; Click the control again, make sure we are on the tab
+
+		if !(323_clear) { ; Try to reacch gamma slider
+			PostMessage, 0x0405,0, ,msctls_trackbar323,% "ahk_id " nvHandler
+			if (!ErrorLevel)
+				323_clear := true
+		}
+		if !(324_clear) { ; Try to reach vibrance slider
+			PostMessage, 0x0405,0, ,msctls_trackbar324,% "ahk_id " nvHandler
+			if (!ErrorLevel)
+				324_clear := true
+		}
+		Sleep 500
+	}
 }
 
-Get_Settings_From_Ini() {
-;			Creates the ini file, sets the broken/unexistent values
-;				Return the settings
-	path := iniFilePath
+NVIDIA_Get_Control(ctrlName) {
+/*		Attempt to retrieve the control ID automatically
+ *		Based on the control's text
+*/
+	global ProgramValues, NVIDIA_Values
 
-	programPID := DllCall("GetCurrentProcessId")
-	IniWrite,% programPID,% iniFilePath,SETTINGS,PID
-	IniWrite,% A_ScriptName,% path,SETTINGS,FileName
-	
-	IniRead, runOnStart,% path,SETTINGS,RunOnStartup
-	if ( runOnStart = "ERROR" || runOnStart = "" ) {
-		IniWrite, 0,% path,SETTINGS,RunOnStartup
-		IniRead, runOnStart,% path,SETTINGS,RunOnStartup
+	iniFilePath 		:= ProgramValues.Ini_File
+	nvHandler 			:= NVIDIA_Values.Handler
+
+	if (ctrlName = "Adjust Desktop") {
+		i := 1, rtrn := "", handler := nvHandler
+		validControls := "Régler les paramètres des couleurs du bureau" ; FR
+					   . ",Adjust desktop color settings" ; EN
+
+		Loop {
+			ControlGetText, ctrlText,Static%i%, ahk_id %handler%
+			if (!ctrlText && A_Index = 1) {
+				While (!ctrlText) {
+					ControlGetText, ctrlText,Static%i%, ahk_id %handler%
+					Sleep 100
+				}
+			}
+			if ctrlText in %validControls%
+				found := true
+			if (A_Index > 20 || found)
+				Break
+			; i++ ; __TO_BE_CHANGED__ Don't forget to enable once done testings
+		}
+		if (found) {
+			ctrlStatic := "Static" i, ctrlStaticText := ctrlText
+			IniWrite,Static%i%,% iniFilePath,NVIDIA_PANEL,Control_AdjustDesktop
+			IniWrite,% ctrlStaticText,% iniFilePath,NVIDIA_PANEL,Control_AdjustDesktopText
+		}
+		else {
+			ctrlInfos := Gui_GetControl("Adjust desktop color settings")
+			ctrlStatic := ctrlInfos[1], ctrlStaticText := ctrlInfos[2]
+			IniWrite,% ctrlStatic,% iniFilePath,NVIDIA_PANEL,Control_AdjustDesktop
+			IniWrite,% ctrlStaticText,% iniFilePath,NVIDIA_PANEL,Control_AdjustDesktopText
+		}
+		return [ctrlStatic, ctrlStaticText]
 	}
-	
-	IniRead, runHidden,% path,SETTINGS,StartHidden
-	if ( runHidden = "ERROR" || runHidden = "" ) {
-		IniWrite, 1,% path,SETTINGS,StartHidden
-		IniRead, runHidden,% path,SETTINGS,StartHidden
-	}
-	
-	IniRead, gDef,% path,DEFAULT,Gamma
-	if ( gDef = "ERROR" || gDef = "" ) {
-		IniWrite, 100,% path,DEFAULT,Gamma
-		IniRead, gDef,% path,DEFAULT,Gamma
-	}
-	
-	IniRead, vDef,% path,DEFAULT,Vibrance
-	if ( vDef ="ERROR" || vDef = "" ) {
-		IniWrite, 50,% path,DEFAULT,Vibrance
-		IniRead, vDef,% path,DEFAULT,Vibrance
-	}
-	
-	IniRead, auto,% path,SETTINGS,AutoUpdate
-	if ( auto = "ERROR" || auto = "" ) {
-		IniWrite, 0,% path,SETTINGS,AutoUpdate
-		IniRead, auto,% path,SETTINGS,AutoUpdate
-	}
-	
-	IniRead, lang, % path,SETTINGS,Language
-	if ( lang = "ERROR" || lang = "" ) {
-		lang := Gui_LangSelect()
-		IniWrite,% lang,% path,SETTINGS,Language
-		IniRead, lang, % path,SETTINGS,Language
-	}
-	
-	IniRead, staticCtrl,% path,SETTINGS,AdjustDesktopCtrl
-	if staticCtrl not contains Static
-	{
-		IniWrite,% "",% iniFilePath,SETTINGS,AdjustDesktopCtrl
-		IniRead, staticCtrl,% path,SETTINGS,AdjustDesktopCtrl		
-	}
-	
-	IniRead, staticCtrlText,% path,SETTINGS,AdjustDesktopCtrlText
-	if ( staticCtrlText = "ERROR" || staticCtrlText = "" ) {
-		IniWrite,% "",% iniFilePath,SETTINGS,AdjustDesktopCtrlText
-		IniRead, staticCtrlText,% path,SETTINGS,AdjustDesktopCtrlText
-	}
-	
-	IniRead, defaultMonitor,% iniFilePath,SETTINGS,Monitor_ID
-	if ( defaultMonitor = "ERROR" || defaultMonitor = "" ) {
-		IniWrite,% "0",% iniFilePath,SETTINGS,Monitor_ID
-		IniRead, defaultMonitor,% iniFilePath,SETTINGS,Monitor_ID
-	}
-	
-	return [runHidden, auto, lang, staticCtrl, staticCtrlText]
 }
 
-Get_Preferences_From_Ini(process) {
-;			Retrieves the preferences from the .ini, returns them
-;			If no preferences have been set, default one will be returned
-	IniRead, x, %iniFilePath%, %process%, Gamma
-	IniRead, x2, %iniFilePath%, %process%, Vibrance
-	if ( x = "ERROR" || x = "" || x2 = "ERROR" || x2 = "" )	; no preferences found, we get the defaut one instead
-	{
-		IniRead, gamma, %iniFilePath%, DEFAULT, Gamma
-		IniRead, vibrance, %iniFilePath%, DEFAULT, Vibrance
+NVCPL_Trigger_Control(ctrlName, params="") {
+/*		Click the "Use NVIDIA Settings" button
+*/
+	global NVIDIA_Values, ProgramSettings
+
+	_nvHandler 				:= NVIDIA_Values.Handler
+	_adjustDesktop 			:= ProgramSettings.NVIDIA_PANEL["Control_AdjustDesktop"]
+	_useNVIDIASettings 		:= "Button4"
+	_selectMonitor 			:= "SysListView321"
+	_gammaSlider 			:= "msctls_trackbar323"
+
+	if (ctrlName = "Use_NVIDIA_Settings") {
+		ControlClick, _useNVIDIASettings,% "ahk_id " _nvHandler ; Click it
+		Sleep 100 ; Sleep to let the NVCPL process it
 	}
-	else ; preferences found, retrieve them
-	{
-		IniRead, gamma, %iniFilePath%, %process%, Gamma
-		if gamma is not integer
-			IniRead, gamma, %iniFilePath%, DEFAULT, Gamma
+	else if (ctrlName = "Adjust_Desktop") {
+		ControlClick,% _adjustDesktop,% "ahk_id " _nvHandler ; Click it
+		Sleep 100 ; Sleep, to let the NVCPL process it
+	}
+	else if (ctrlName = "Select_Monitor") {
+		static prev_monitorID, isMonitorUsingNVIDIA := {} ; isMonitorUsingNVIDIA: If we clicked "Use NVIDIA Settings" for this monitor yet
+		monitorID := params.Monitor
+		prev_monitorID := (prev_monitorID = "")?(0):(prev_monitorID) ; No monitor previously selected. Default to 0
+
+		monDiff := monitorID - prev_monitorID
+		whichArrow := (monDiff > 0)?("Right"):("Left")
+		if (whichArrow = "Left") {
+			StringTrimLeft, monDiff, monDiff, 1 ; Remove the minus before the number
+		}
+		if (monDiff) {
+			if (!isMonitorUsingNVIDIA[monitorID])
+				ControlClick,% _selectMonitor,% "ahk_id " _nvHandler
+			ControlSend,% _selectMonitor,{Blind}{%whichArrow% %monDiff%},% "ahk_id " _nvHandler ; Select monitor
+			if (!isMonitorUsingNVIDIA[monitorID]) {
+				NVCPL_Trigger_Control("Use_NVIDIA_Settings")
+				isMonitorUsingNVIDIA[monitorID] := true
+			}
+		}
+
+		prev_monitorID := monitorID
+	}
+	else if (ctrlName = "Gamma") {
+		static prev_gamma
+		gamma := params.Gamma, monitorID := params.Monitor
+
+		whichArrow := (gamma > prevGamma)?("Right"):("Left")
+		value := (whichArrow = "Right")?(gamma-2):(gamma+2)
+		PostMessage, 0x0405,0,% value,% _gammaSlider,% "ahk_id " _nvHandler ; Send gamma
+		ControlSend,% _gammaSlider, {Blind}{%whichArrow% 2},% "ahk_id " _nvHandler ; Move to update gamma slider
+
+		prev_gamma := gamma
+	}
+	else if (ctrlName = "Vibrance") {
+		vibrance := params.Vibrance, monitorID := params.Monitor
+		NvApi.SetDVCLevelEx(vibrance, monitorID)
+	}
+	/*	These need to be fixed.
+		A value of 80 means 0%. A value of 120 means 100%.
+		Values last digit can only be 0 2 5 7.
+
+	else if (ctrlName = "Brightness") {
+		PostMessage, 0x0405,0,% meVal-1, msctls_trackbar321,% "ahk_exe nvcplui.exe" ; Send gamma
+		ControlSend, msctls_trackbar321, {Blind}{Right},% "ahk_exe nvcplui.exe" ; Move to update gamma slider
+	}
+	else if (ctrlName = "Contrast") {
+		PostMessage, 0x0405,0,% meVal-1, msctls_trackbar322,% "ahk_exe nvcplui.exe" ; Send gamma
+		ControlSend, msctls_trackbar322, {Blind}{Space},% "ahk_exe nvcplui.exe" ; Move to update gamma slider
+	}
+	*/
+}
+
+NVIDIA_Set_Settings(gamma, vibrance, monitorID, isFullScreen=0, isHotkey=0) {
+	global ProgramValues, NVIDIA_Values, ProgramSettings
+	global NVIDIA_Set_Settings_FullScreen_CANCEL
+	global NVIDIA_Set_Settings_FullScreen_START
+	global NVIDIA_Set_Settings_FullScreen_HANDLE
+	static prev_gamma, prev_vibrance, prev_MonitorID
+	static _gamma, _vibrance, _monitorID, againIndex
+
+	hiddenWin := A_DetectHiddenWindows
+	DetectHiddenWindows, On
+
+	nvHandler := NVIDIA_Values.Handler
+
+	if !(NVIDIA_Values.Is_Ready)
+		Return
+
+;	Check if NVCPL exsists
+	if !( WinExist("ahk_id " nvHandler ) ) {
+		translations := Get_Translations(A_ThisFunc)
+		Tray_Notifications_Show(ProgramValues.Name, translations.TEXT_NvidiaNotFound)
+		Sleep 5000
+		NVCPL_Be_Ready()
+		Return
+	}
+	; Reset previous monitor settings
+	if (prev_MonitorID != monitorID) {
+		defaultGamma 		:= ProgramSettings.DEFAULT.Gamma
+		defaultVibrance 	:= ProgramSettings.DEFAULT.Vibrance
+		if ( prev_gamma != defaultGamma && IsNum(prev_gamma)  ) 
+			NVCPL_Trigger_Control("Gamma", {Gamma:defaultGamma, Monitor:prev_MonitorID})
+		if ( prev_vibrance != defaultVibrance && IsNum(prev_vibrance)  )
+			NVCPL_Trigger_Control("Vibrance", {Vibrance:defaultVibrance, Monitor:prev_MonitorID})
+	}
+	if ( (prev_gamma != gamma) || (prev_vibrance != vibrance) || isHotkey ) {
+		NVCPL_Trigger_Control("Select_Monitor", {Monitor:monitorID})
+		if ( prev_gamma != gamma && IsNum(prev_gamma) || isHotkey )
+			NVCPL_Trigger_Control("Gamma", {Gamma:gamma, Monitor:monitorID})
+		if ( prev_vibrance != vibrance && IsNum(prev_vibrance) || isHotkey)
+			NVCPL_Trigger_Control("Vibrance", {Vibrance:vibrance, Monitor:monitorID})
+
+		; Fullscreen app tend to revert our settings, we wait a bit then re-apply them
+		if ( isFullScreen ) {
+			NVIDIA_Set_Settings_FullScreen_HANDLE := WinActive("A")
+			NVIDIA_Set_Settings_FullScreen_START := true
+			_gamma := gamma, _vibrance := vibrance, _monitorID := monitorID, againIndex := 0
+			SetTimer, %A_ThisFunc%_FullScreen, -2000
+		}
+	}
+
+	prev_gamma := gamma, prev_vibrance := vibrance, prev_MonitorID := monitorID
+	DetectHiddenWindows, %hiddenWin%
+	Return
+
+	NVIDIA_Set_Settings_FullScreen:
+		if (NVIDIA_Set_Settings_FullScreen_CANCEL ) {
+			NVIDIA_Set_Settings_FullScreen_CANCEL := false
+			NVIDIA_Set_Settings_FullScreen_START := false
+			againIndex := 0
+		}
+		else if (againIndex <= 3) {
+			NVCPL_Trigger_Control("Gamma", {Gamma:_gamma, Monitor:_monitorID})
+			NVCPL_Trigger_Control("Vibrance", {Vibrance:_vibrance, Monitor:_monitorID})
+			SetTimer, %A_ThisLabel%, -2000
+		}
+		else {
+			NVIDIA_Set_Settings_FullScreen_START := false
+			againIndex := 0
+		}
+	Return
+}
+
+/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * 
+ *					SETTINGS GUI
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * 
+*/
+
+Gui_Settings() {
+	global ProgramSettings, ProgramValues, GameProfiles
+	global GUISettings_Controls := {}
+	global GuiSettings_Submit := {}
+
+	translations := Get_Translations(A_ThisFunc)
+	labelPrefix := "Gui_Settings_"
+	profileBoxWidth := 250, profileBoxHeight := 300
+
+	Gui, Settings:Destroy
+	Gui, Settings:New, +AlwaysOnTop +SysMenu -MinimizeBox -MaximizeBox +OwnDialogs +Label%labelPrefix% +Delimiter`n hwndhGuiSettings,% "Settings"
+
+;	GENERAL SETTINGS
+	Gui_Add({_Name:"Settings",_Font:"Segoe UI",_Type:"GroupBox",_Content:translations.GB_GeneralSettings,_Pos:"xm+5 w" (profileBoxWidth*2)+80 " h70",_Color:"Black",_Opts:"Section"})
+	Gui_Add({_Type:"DropDownList",_Content:translations.DDL_Language,_Pos:"xp+10 yp+20",_Var:"DDL_Language",_Label:labelPrefix "OnLanguageChange"})
+	Gui_Control("Settings", "ChooseString" ,GuiSettings_Controls.DDL_Language, ProgramSettings.SETTINGS.Language) ; Choose language __TO_BE_CHANGED__ Add something in Gui_Add that use Gui_Control() when using the ChooseString parameter
+	Gui_Add({_Type:"Checkbox",_Content:translations.CB_RunOnStartup,_Var:"CB_RunOnStartup",_CB_State:ProgramSettings.SETTINGS.RunOnStartup})
+	; Gamma default
+	Gui_Add({_Type:"Text",_Content:translations.TEXT_DefaultGamma,_Pos:"xs+350 ys+15"})
+	Gui_Add({_Type:"Edit",_Content:"",_Pos:"xp+20 y+5 w50",_Opts:"ReadOnly"})
+	Gui_Add({_Type:"UpDown",_Content:ProgramSettings.DEFAULT.Gamma,_Var:"EDIT_DefaultGamma",_Label:labelPrefix "OnDefaultSettingsChange",_Opts:"Range30-280"})
+	; Vibrance default
+	Gui_Add({_Type:"Text",_Content:translations.TEXT_DefaultVibrance,_Pos:"xs+450 ys+15"})
+	Gui_Add({_Type:"Edit",_Content:"",_Pos:"xp+20 y+5 w50",_Opts:"ReadOnly"})
+	Gui_Add({_Type:"UpDown",_Content:ProgramSettings.DEFAULT.Vibrance,_Var:"EDIT_DefaultVibrance",_Label:labelPrefix "OnDefaultSettingsChange",_Opts:"Range0-100"})
+	; Monitor ID
+/*	Disabled, as the monitor ID is automatically retrieved based on window position
+	Gui_Add({_Type:"Text",_Content:translations.TEXT_MonitorID,_Pos:"xs+420 ys+15"})
+	Gui_Add({_Type:"Edit",_Content:"",_Pos:"xp+5 y+5 w50",_Opts:"ReadOnly"})
+	Gui_Add({_Type:"UpDown",_Content:ProgramSettings.Monitor_ID,_Var:"EDIT_MonitorID",_Label:labelPrefix "OnDefaultSettingsChange",_Opts:"Range0-100"})
+*/
+
+;	RUNNING APPLICATIONS
+	Gui_Add({_Type:"GroupBox",_Content:translations.GB_RunningApplications,_Pos:"xm+5 w" profileBoxWidth-8 " h30",_Color:"Black"})
+	Gui_Add({_Type:"ListBox",_Content:"",_Pos:"xm yp+20 w" profileBoxWidth " h" profileBoxHeight,_Label:labelPrefix "LB_RunningApplications_OnSelect",_Var:"LB_RunningApps"})
+
+;	MIDDLE BUTTONS
+	Gui_Add({_Type:"Button",_Content:translations.BTN_ToggleHidden,_Pos:"xp+" profileBoxWidth " yp-1 w80 h40",_Label:labelPrefix "ToggleHidden",_Opts:"Section"})
+	Gui_Add({_Type:"Button",_Content:translations.BTN_AddSelectedWindow,_Pos:"xp ys+" (profileBoxHeight/2)-66 " hp wp",_Label:labelPrefix "AddSelectedWindow"})
+	Gui_Add({_Type:"Button",_Content:translations.BTN_RefreshWindows,_Pos:"xp yp+40 hp wp",_Label:labelPrefix "RefreshWindows"})
+	Gui_Add({_Type:"Button",_Content:translations.BTN_RemoveSelectedWindow,_Pos:"xp yp+40 hp wp",_Label:labelPrefix "RemoveSelectedWindow"})
+	Gui_Add({_Type:"Button",_Content:translations.BTN_ShowHelp,_Pos:"xp ys+" (profileBoxHeight)-48 " hp wp",_Label:labelPrefix "Help"})
+
+;	MY SETTINGS
+	Gui_Add({_Type:"GroupBox",_Content:translations.GB_MySettings,_Pos:"xs+85 ys-20 w" profileBoxWidth-8 " h30",_Color:"Black"})
+	Gui_Add({_Type:"ListBox",_Content:"",_Pos:"xs+80 yp+20 w" profileBoxWidth " h" profileBoxHeight,_Var:"LB_MySettings",_Label:labelPrefix "LB_MySettings_OnSelect"})
+
+;	SELECTED APP SETTINGS
+	Gui_Add({_Type:"GroupBox",_Content:translations.GB_SelectedAppSettings,_Pos:"xm w" (profileBoxWidth*2)+80 " h80",_Color:"Black",_Opts:"Section"})
+	; Gamma
+	Gui_Add({_Type:"Text",_Content:translations.TEXT_Gamma,_Pos:"xs+80 ys+25"})
+	Gui_Add({_Type:"Edit",_Pos:"x+10 yp-3 w50",_Opts:"ReadOnly"})
+	Gui_Add({_Type:"UpDown",_Content:ProgramSettings.DEFAULT.Gamma,_Var:"EDIT_SelectedAppGamma",_Label:labelPrefix "SelectedAppSettings_OnGammaChange",_Opts:"Disabled Range30-280"})
+	Gui_Add({_Type:"Slider",_Content:ProgramSettings.DEFAULT.Gamma,_Pos:"xp-100 y+0 w210",_Var:"SLIDER_SelectedAppGamma",_Label:labelPrefix "SelectedAppSettings_OnGammaChange",_Opts:"Disabled AltSubmit Line5 Page5 ToolTip Range30-280"})
+	; Vibrance
+	Gui_Add({_Type:"Text",_Content:translations.TEXT_Vibrance,_Pos:"xs+360 ys+25"})
+	Gui_Add({_Type:"Edit",_Pos:"x+10 yp-3 w50",_Opts:"ReadOnly"})
+	Gui_Add({_Type:"UpDown",_Content:ProgramSettings.DEFAULT.Vibrance,_Var:"EDIT_SelectedAppVibrance",_Label:labelPrefix "SelectedAppSettings_OnVibranceChange",_Opts:"Disabled Range0-100"})
+	Gui_Add({_Type:"Slider",_Content:ProgramSettings.DEFAULT.Vibrance,_Pos:"xp-100 y+0 w210",_Var:"SLIDER_SelectedAppVibrance",_Label:labelPrefix "SelectedAppSettings_OnVibranceChange",_Opts:"Disabled AltSubmit Line5 Page5 ToolTip Range0-100"})
+
+;	HOTKEYS
+	Gui_Add({_Type:"GroupBox",_Content:translations.GB_Hotkeys,_Pos:"xm y+10 w" (profileBoxWidth*2)+80 " h120",_Color:"Black",_Opts:"Section"})
+	Gui_Add({_Type:"ListBox",_Content:"Gamma`nVibrance`nSpecial",_Pos:"xs+10 ys+20 w120 R3",_Var:"LB_Hotkeys",_Label:labelPrefix "LB_OnHotkeyTabSelect",_Choose:"1",_Opts:"Section"})
+	Gui_Add({_Type:"Tab2",_Pos:"x0 y0 w0 h0",_Content:"Gamma`nVibrance`nSpecial",_Var:"TAB_Hotkeys",_Opts:"-Wrap"})
+	; GAMMA
+	; Gamma++
+	Gui, Settings:Tab, Gamma
+	Gui_Add({_Type:"Text",_Content:translations.TEXT_Increase,_Pos:"xs+140 ys+5"})
+	Gui_Add({_Type:"Hotkey",_Content:"",_Pos:"x+5 yp-3 w125",_Var:"HK_GammaPlus",_Label:labelPrefix "HK_OnHotkeyChange",_Opts:"Limit190"}) ; 190 = no modifier allowed - modifier are replaced by !^
+	Gui_Add({_Type:"Checkbox",_Content:"CTRL",_Pos:"xs+140 y+5",_Label:labelPrefix "CB_OnHotkeyCheckModifier",_Var:"CB_GammaPlusCTRL"})
+	Gui_Add({_Type:"Checkbox",_Content:"ALT",_Pos:"x+0 yp",_Label:labelPrefix "CB_OnHotkeyCheckModifier",_Var:"CB_GammaPlusALT"})
+	Gui_Add({_Type:"Checkbox",_Content:"SHIFT",_Pos:"x+0 yp",_Label:labelPrefix "CB_OnHotkeyCheckModifier",_Var:"CB_GammaPlusSHIFT"})
+	Gui_Add({_Type:"Checkbox",_Content:"WIN",_Pos:"x+0 yp",_Label:labelPrefix "CB_OnHotkeyCheckModifier",_Var:"CB_GammaPlusWIN"})
+	; Gamma --
+	Gui_Add({_Type:"Text",_Content:translations.TEXT_Reduce,_Pos:"xs+360 ys+5"})
+	Gui_Add({_Type:"Hotkey",_Content:"",_Pos:"x+5 yp-3 w125",_Var:"HK_GammaMinus",_Label:labelPrefix "HK_OnHotkeyChange",_Opts:"Limit190"}) ; 190 = no modifier allowed - modifier are replaced by !^
+	Gui_Add({_Type:"Checkbox",_Content:"CTRL",_Pos:"xs+360 y+5",_Label:labelPrefix "CB_OnHotkeyCheckModifier",_Var:"CB_GammaMinusCTRL"})
+	Gui_Add({_Type:"Checkbox",_Content:"ALT",_Pos:"x+0 yp",_Label:labelPrefix "CB_OnHotkeyCheckModifier",_Var:"CB_GammaMinusALT"})
+	Gui_Add({_Type:"Checkbox",_Content:"SHIFT",_Pos:"x+0 yp",_Label:labelPrefix "CB_OnHotkeyCheckModifier",_Var:"CB_GammaMinusSHIFT"})
+	Gui_Add({_Type:"Checkbox",_Content:"WIN",_Pos:"x+0 yp",_Label:labelPrefix "CB_OnHotkeyCheckModifier",_Var:"CB_GammaMinusWIN"})
+
+	Gui_Add({_Type:"Text",_Pos:"xs ys+50",_Content:translations.TEXT_HK_GammaTabHelp})
+	; VIBRANCE
+	; Vibrance ++
+	Gui, Settings:Tab, Vibrance
+	Gui_Add({_Type:"Text",_Content:translations.TEXT_Increase,_Pos:"xs+140 ys+5"})
+	Gui_Add({_Type:"Hotkey",_Content:"",_Pos:"x+5 yp-3 w125",_Var:"HK_VibrancePlus",_Label:labelPrefix "HK_OnHotkeyChange",_Opts:"Limit190"}) ; 190 = no modifier allowed - modifier are replaced by !^
+	Gui_Add({_Type:"Checkbox",_Content:"CTRL",_Pos:"xs+140 y+5",_Label:labelPrefix "CB_OnHotkeyCheckModifier",_Var:"CB_VibrancePlusCTRL"})
+	Gui_Add({_Type:"Checkbox",_Content:"ALT",_Pos:"x+0 yp",_Label:labelPrefix "CB_OnHotkeyCheckModifier",_Var:"CB_VibrancePlusALT"})
+	Gui_Add({_Type:"Checkbox",_Content:"SHIFT",_Pos:"x+0 yp",_Label:labelPrefix "CB_OnHotkeyCheckModifier",_Var:"CB_VibrancePlusSHIFT"})
+	Gui_Add({_Type:"Checkbox",_Content:"WIN",_Pos:"x+0 yp",_Label:labelPrefix "CB_OnHotkeyCheckModifier",_Var:"CB_VibrancePlusWIN"})
+	; Vibrance --
+	Gui_Add({_Type:"Text",_Content:translations.TEXT_Reduce,_Pos:"xs+360 ys+5"})
+	Gui_Add({_Type:"Hotkey",_Content:"",_Pos:"x+5 yp-3 w125",_Var:"HK_VibranceMinus",_Label:labelPrefix "HK_OnHotkeyChange",_Opts:"Limit190"}) ; 190 = no modifier allowed - modifier are replaced by !^
+	Gui_Add({_Type:"Checkbox",_Content:"CTRL",_Pos:"xs+360 y+5",_Label:labelPrefix "CB_OnHotkeyCheckModifier",_Var:"CB_VibranceMinusCTRL"})
+	Gui_Add({_Type:"Checkbox",_Content:"ALT",_Pos:"x+0 yp",_Label:labelPrefix "CB_OnHotkeyCheckModifier",_Var:"CB_VibranceMinusALT"})
+	Gui_Add({_Type:"Checkbox",_Content:"SHIFT",_Pos:"x+0 yp",_Label:labelPrefix "CB_OnHotkeyCheckModifier",_Var:"CB_VibranceMinusSHIFT"})
+	Gui_Add({_Type:"Checkbox",_Content:"WIN",_Pos:"x+0 yp",_Label:labelPrefix "CB_OnHotkeyCheckModifier",_Var:"CB_VibranceMinusWIN"})
+
+	Gui_Add({_Type:"Text",_Pos:"xs ys+50",_Content:translations.TEXT_HK_VibranceTabHelp})
+	; SPECIAL
+	; Trigger settings
+	Gui, Settings:Tab, Special
+	Gui_Add({_Type:"Text",_Content:translations.TEXT_TriggerSave,_Pos:"xs+140 ys+5"})
+	Gui_Add({_Type:"Hotkey",_Content:"",_Pos:"x+5 yp-3 w125",_Var:"HK_TriggerAndSave",_Label:labelPrefix "HK_OnHotkeyChange",_Opts:"Limit190"}) ; 190 = no modifier allowed - modifier are replaced by !^
+	Gui_Add({_Type:"Checkbox",_Content:"CTRL",_Pos:"xs+140 y+5",_Label:labelPrefix "CB_OnHotkeyCheckModifier",_Var:"CB_TriggerAndSaveCTRL"})
+	Gui_Add({_Type:"Checkbox",_Content:"ALT",_Pos:"x+0 yp",_Label:labelPrefix "CB_OnHotkeyCheckModifier",_Var:"CB_TriggerAndSaveALT"})
+	Gui_Add({_Type:"Checkbox",_Content:"SHIFT",_Pos:"x+0 yp",_Label:labelPrefix "CB_OnHotkeyCheckModifier",_Var:"CB_TriggerAndSaveSHIFT"})
+	Gui_Add({_Type:"Checkbox",_Content:"WIN",_Pos:"x+0 yp",_Label:labelPrefix "CB_OnHotkeyCheckModifier",_Var:"CB_TriggerAndSaveWIN"})
+	; Save settings
+	; Gui_Add({_Type:"Text",_Content:"Save:",_Pos:"xs+360 ys+5"})
+	; Gui_Add({_Type:"Hotkey",_Content:"",_Pos:"x+5 yp-3 w125",_Var:"HK_SaveSettings",_Label:"",_Opts:"Limit190"}) ; 190 = no modifier allowed - modifier are replaced by !^
+	; Gui_Add({_Type:"Checkbox",_Content:"CTRL",_Pos:"xs+360 y+5",_Var:"CB_SaveSettingsCTRL"})
+	; Gui_Add({_Type:"Checkbox",_Content:"ALT",_Pos:"x+0 yp",_Var:"CB_SaveSettingsALT"})
+	; Gui_Add({_Type:"Checkbox",_Content:"SHIFT",_Pos:"x+0 yp",_Var:"CB_SaveSettingsSHIFT"})
+	; Gui_Add({_Type:"Checkbox",_Content:"WIN",_Pos:"x+0 yp",_Var:"CB_SaveSettingsWIN"})
+
+	Gui_Add({_Type:"Text",_Pos:"xs ys+50",_Content:translations.TEXT_HK_SpecialTabHelp})
+
+	; Gui_Control("Settings", "ChooseString", GuiSettings_Controls["TAB_Hotkeys"], "Gamma")
+	GoSub Gui_Settings_RefreshWindows
+	GoSub Gui_Settings_RefreshSettings
+	Gui, Settings:Show, x-610 y0 NoActivate
+	Return
+
+	Gui_Settings_LB_OnHotkeyTabSelect:
+		GoSub Gui_Settings_Submit
+
+		clickedTab := GuiSettings_Submit["LB_Hotkeys"]
+		Gui_Control("Settings", "ChooseString", GuiSettings_Controls["TAB_Hotkeys"],clickedTab)
+	Return
+
+	Gui_Settings_CB_OnHotkeyCheckModifier:
+		GoSub Gui_Settings_Submit
+
+		isChecked := GuiSettings_Submit[A_GuiControl]
+		StringTrimLeft, iniKey, A_GuiControl, 3
+		IniWrite,% isChecked,% ProgramValues.Ini_File,% "HOTKEYS",% iniKey
+	Return
+
+	Gui_Settings_HK_OnHotkeyChange:
+		GoSub Gui_Settings_Submit
+		isHotkeyReplaced := false
+
+		; Replace the ^! string, which replace any modifier by default when using Limit190
+		thisHotkey := StrReplace(GuiSettings_Submit[A_GuiControl], "^!", "", replaceCount) ; remove default modifier
+		firstChar := SubStr(thisHotkey, 1, 1)
+
+		; Remove the first character if its a modifier, since even with Limit190 some keys such as mod+numpad button can pass through
+		if (firstChar = "!" || firstChar = "^" || firstChar = "+") {
+			StringTrimLeft, thisHotkey, thisHotkey, 1
+			isHotkeyReplaced := true
+		}
+
+		; Replace the current content with the new replaced one
+		if (replaceCount || isHotkeyReplaced) {
+			Gui_Control("Settings", ,GuiSettings_Controls[A_GuiControl], thisHotkey)
+		}
 		
-		IniRead, vibrance, %iniFilePath%, %process%, Vibrance
-		if vibrance is not integer
-			IniRead, vibrance, %iniFilePath%, DEFAULT, Vibrance
-	}
-	IniRead, gammaDef, %iniFilePath%, DEFAULT, Gamma
-	IniRead, vibranceDef, %iniFilePath%, DEFAULT, Vibrance
-	if ( gammaDef = "ERROR" || gammaDef = "" )
-		gammaDef := 100
-	if ( vibranceDef = "ERROR" || vibranceDef ="" )
-		vibranceDef := 50		
-	if ( gamma = "ERROR" || gamma = "" )
-		gamma := 100
-	if ( vibrance = "ERROR" || vibrance ="" )
-		vibrance := 50
-	
-	IniRead, defaultMonitor,% iniFilePath,SETTINGS,Monitor_ID
-	return [gamma, vibrance, gammaDef, vibranceDef, defaultMonitor]
-} 
+		StringTrimLeft, iniKey, A_GuiControl, 3
+		IniWrite,% thisHotkey,% ProgramValues.Ini_File,% "HOTKEYS",% iniKey
+	Return
 
-Get_NVCPL_Path() {
-;			Retrieve the NVCPL location and runs it
-;			If unable to find it, ask the user to point its location
-	IniRead, path,% iniFilePath,SETTINGS,Path
-	if ( path = "ERROR" || path = "" ) { 	;	Try to find nvcplui.exe, based on 32/64 OS
-		EnvGet, progFiles, ProgramW6432
-		if ( progFiles = )
-			EnvGet, progFiles, ProgramFiles
-		path := progFiles "\NVIDIA Corporation\Control Panel Client\nvcplui.exe"
-	}
-	if !( FileExist( path ) ) {
-;		Couldn't find, ask the user to locate it manually
-		MsgBox, 0x40030,% programName " - WARNING: nvcplui.exe not found",Couldn't find nvcplui.exe!`n`nUpon closing this window, you will be asked to locate it manually`nThe file should be located under:`n"Program Files\NVIDIA Corporation\Control Panel Client\nvcplui.exe"
-		FileSelectFile, path, 3, %progFiles%, Please go to \NVIDIA Corporation\Control Panel Client\nvcplui.exe, nvcplui.exe
-		if ( ErrorLevel = 1 ) {
-			Reload_Func()
-		}
-	}
-	IniWrite,% path,% iniFilePath, SETTINGS,Path
-	return path
-}
+	Gui_Settings_LB_RunningApplications_OnSelect:
+	/*		Disable the "Selected application settings" sliders upon selecting from the "Running Applications" LB.
+	*/
+		Gui_Control("Settings", "Choose",GuiSettings_Controls.LB_MySettings, "0") ; So we can only have one list selected at a time
 
-Run_NVCPL(clickIt=0) {
-;			Control IDs are generated dynamically as the user goes trough the NVCPL
-;				Therefore, we have to make sure the first tab clicked is the one we need
-;				So all the control names can be predicted
-	path := nvPath, staticCtrl := nvStatic
-	
-	Process, Close, nvcplui.exe
-	Process, WaitClose, nvcplui.exe
-	Run, %path%, ,Min ,procID
-	WinWait, ahk_pid %procID%
-	WinGet, handler, ID, ahk_pid %procID%
-	if ( staticCtrl ) {
-		ControlClick, %staticCtrl%, ahk_id %handler%
-		sleep 100
-	}
-	if ( clickIt ) {
-		ControlClick, Button4, ahk_id %handler% ; "Use NVIDIA settings" button
-		WinHide, ahk_id %handler%
-	}
-	return handler
-}
+		Gui_Control("Settings", "+Disabled",GuiSettings_Controls.EDIT_SelectedAppGamma) ; Set +Disabled state
+		Gui_Control("Settings", "+Disabled",GuiSettings_Controls.SLIDER_SelectedAppGamma)
+		Gui_Control("Settings", "+Disabled",GuiSettings_Controls.EDIT_SelectedAppVibrance)
+		Gui_Control("Settings", "+Disabled",GuiSettings_Controls.SLIDER_SelectedAppVibrance)
+	Return
 
-Check_nvStatic_Valid() {
-;			Make sure the control used for nvStatic is valid
-;			It works by checking if the gamma/vibrance sliders are available
-;			If they are not, ask the user to point the control again.
-	handler := nvHandler, staticCtrl := nvStatic, staticCtrlText := nvStaticText
-	transArray := Get_Translation("Check_nvStatic", programLang)
-	
-	WinShow, ahk_id %handler%
-	WinWait, ahk_id %handler%
-	while (ctrlText = "") { ; Get the current nvStatic control text
-		ControlGetText, ctrlText, %staticCtrl%, ahk_id %handler%
-		if ( a_index > 100 )
-			break
-	}
-	if ( staticCtrl = "ERROR" || staticCtrl = "" || staticCtrlText = "ERROR" || staticCtrlText = "" || ctrlText <> nvStaticText ) {
-		Get_nvStatic_Auto()
-	}
-	Loop {
-;		Make sure the window responds to the ControlClick
-		ControlClick, %staticCtrl%, ahk_id %handler% ; Failed, click the tab again, in case it wasn't active already
-		if ( errorlvl = "clear323-324" )
-			break
-		if ( errorlvl <> "clear323" && errorlvl <> "clear323-324" ) {
-			PostMessage, 0x0405,0, ,msctls_trackbar323, ahk_id %handler% ; Attempt to reach the slider control
-			if ( ErrorLevel )
-				ControlClick, %staticCtrl%, ahk_id %handler% ; Failed, click the tab again, in case it wasn't active already
-			else 
-				errorlvl := "clear323" ; Succeesfully reached the control, can be skipped from the check from now
-		}
-		if ( errorlvl <> "clear-323-324" ) {
-			PostMessage, 0x0405,0, ,msctls_trackbar324, ahk_id %handler% ; Attempt to reach the slider control
-			if ( ErrorLevel )
-				ControlClick, %staticCtrl%, ahk_id %handler% ; Failed, click the tab again, in case it wasn't active already
-			else 
-				if ( errorlvl = "clear323" ) ; First check already succeed
-					errorlvl := "clear323-324" ; Succeesfully reached the control, can be skipped from the check from now
-		}
-		if ( A_Index > 100 ) { ; More than 100 attempts to reach the sliders controls failed.
-			TrayTip
-			Get_nvStatic_Auto() ; We attempt to retrieve the tab control automatically.
-			
-		}
-		if ( A_Index > 20 ) ; Checks are still in progress
-			TrayTip,% programName,% transArray[1] "`n" A_Index " / 100" transArray[2]
-		sleep 100
-	}
-}
 
-Get_nvStatic_Auto() {
-;			Tries to retrive the control ID automatically
-;			It's attempts are based on the control's text
-	i := 1, rtrn := "", handler := nvHandler
-	ctrlTextFR := "Régler les paramètres des couleurs du bureau", ctrlTextEN := "Adjust desktop color settings", i := 1
-	
-	Loop {
-		ControlGetText, ctrlText, Static%i%, ahk_exe nvcplui.exe
-		if ( ctrlText = "" )
-			while ( ctrlText = "" ) { ; The window is most likely not responding, so we try until we get something
-				ControlGetText, ctrlText,Static%i%, ahk_id %handler%
-				sleep 100
+	Gui_Settings_OnDefaultSettingsChange:
+	/*		Triggered upon changing value for default gamma/vibrance or monitor ID
+	*/
+		GoSub, Gui_Settings_Submit
+	Return
+
+	Gui_Settings_OnLanguageChange:
+		GoSub, Gui_Settings_Submit
+
+		RegExMatch(GuiSettings_Submit.DDL_Language, "(.*)-", lang)
+		StringTrimRight, lang, lang, 1
+		ProgramSettings.SETTINGS.Language := lang
+		if (lang) {
+			Gui_Settings()
+		}
+	Return
+
+	Gui_Settings_SelectedAppSettings_OnGammaChange:
+		GoSub, Gui_Settings_Submit
+
+		; No settting selected, abort
+		if !(selectedSetting)
+			Return
+
+		; Once we are done moving sliders
+		if (A_GuiEvent = "Normal" || A_GuiEvent = 4) { ; 4 = mouse wheel.
+			; We are moving SLIDER, adjust EDIT
+			if A_GuiControl contains SLIDER
+			{
+				Gui_Control("Settings", ,GuiSettings_Controls.EDIT_SelectedAppGamma, GuiSettings_Submit.SLIDER_SelectedAppGamma)
 			}
-		if ( ctrlText = ctrlTextFR || ctrlText = ctrlTextEN ) {
-			rtrn := "Ctrl_Found"
-			break
+			; We changed EDIT, adjust SLIDER
+			else if A_GuiControl contains EDIT
+			{
+				Gui_Control("Settings", ,GuiSettings_Controls.SLIDER_SelectedAppGamma, GuiSettings_Submit.EDIT_SelectedAppGamma)
+			}
+			
+			Gosub, Gui_Settings_Submit
+			IniWrite,% GuiSettings_Submit.SLIDER_SelectedAppGamma,% ProgramValues.Ini_File,% selectedSetting,Gamma ; Write ini setting for this executable
+			GameProfiles[selectedSetting]["Gamma"] 		:= GuiSettings_Submit.SLIDER_SelectedAppGamma ; Set the new setting, for fast preview
 		}
-		if ( i > 10 ) {
-			rtrn := "Ctrl_Not_Found"
-			break
+	Return
+
+	Gui_Settings_SelectedAppSettings_OnVibranceChange:
+		GoSub, Gui_Settings_Submit
+
+		if !(selectedSetting)
+			Return
+
+		if (A_GuiEvent = "Normal" || A_GuiEvent = 4) {
+			if A_GuiControl contains SLIDER
+			{
+				Gui_Control("Settings", ,GuiSettings_Controls.EDIT_SelectedAppVibrance, GuiSettings_Submit.SLIDER_SelectedAppVibrance)
+			}
+			else if A_GuiControl contains EDIT
+			{
+				Gui_Control("Settings", ,GuiSettings_Controls.SLIDER_SelectedAppVibrance, GuiSettings_Submit.EDIT_SelectedAppVibrance)
+			}
+			Gosub, Gui_Settings_Submit
+			IniWrite,% GuiSettings_Submit.SLIDER_SelectedAppVibrance,% ProgramValues.Ini_File,% selectedSetting,Vibrance
+			GameProfiles[selectedSetting]["Vibrance"] 	:= GuiSettings_Submit.SLIDER_SelectedAppVibrance
 		}
-		sleep 100
-		i++
+	Return
+
+	Gui_Settings_GetMySettings:
+		IniRead, allSections,% ProgramValues.Ini_File
+
+		mySettings := ""
+		Loop, Parse, allSections,% "`n`r"
+		{
+			if RegExMatch(A_LoopField, ".exe") {
+				mySettings .= A_LoopField "`n"
+			}
+		}
+
+		Sort, mySettings
+	Return
+
+	Gui_Settings_LB_MySettings_OnSelect:
+	/*		Triggered when clicking on an item from the "My Settings" listbox
+	*/
+		Gosub Gui_Settings_Submit
+
+		selectedSetting := GuiSettings_Submit.LB_MySettings
+		if !(selectedSetting)
+			Return
+
+		; Get the settings
+		IniRead, this_gamma,% ProgramValues.Ini_File,% selectedSetting,Gamma,% ProgramSettings.DEFAULT.Gamma
+		IniRead, this_vibrance,% ProgramValues.Ini_File,% selectedSetting,Vibrance,% ProgramSettings.DEFAULT.Gamma
+		; Gamma
+		Gui_Control("Settings", ,GuiSettings_Controls.EDIT_SelectedAppGamma, this_gamma)
+		Gui_Control("Settings", ,GuiSettings_Controls.SLIDER_SelectedAppGamma, this_gamma)
+		; Vibrance
+		Gui_Control("Settings", ,GuiSettings_Controls.EDIT_SelectedAppVibrance, this_vibrance)
+		Gui_Control("Settings", ,GuiSettings_Controls.SLIDER_SelectedAppVibrance, this_vibrance)
+		; Enable the controls
+		Gui_Control("Settings", "-Disabled",GuiSettings_Controls.EDIT_SelectedAppGamma)
+		Gui_Control("Settings", "-Disabled",GuiSettings_Controls.SLIDER_SelectedAppGamma)
+		Gui_Control("Settings", "-Disabled",GuiSettings_Controls.EDIT_SelectedAppVibrance)
+		Gui_Control("Settings", "-Disabled",GuiSettings_Controls.SLIDER_SelectedAppVibrance)
+		; Un-select left list item
+		Gui_Control("Settings", "Choose",GuiSettings_Controls.LB_RunningApps, "0")
+	Return
+
+	Gui_Settings_ToggleHidden:
+/*		Toggle on/off hidden windows detection
+*/
+		detectHiddenWin := !detectHiddenWin
+		GoSub Gui_Settings_RefreshWindows
+	Return
+
+	Gui_Settings_AddSelectedWindow:
+/*		Add the selected window to "My Settings"
+*/
+		GoSub, Gui_Settings_Submit
+
+		RegExMatch(GuiSettings_Submit.LB_RunningApps, "(.*?).exe", selectedItem)
+		if (selectedItem) {
+			IniWrite,% ProgramSettings.DEFAULT.Gamma,% ProgramValues.Ini_File,% selectedItem,Gamma
+			IniWrite,% ProgramSettings.DEFAULT.Vibrance,% ProgramValues.Ini_File,% selectedItem,Vibrance
+			gameProfilesSettings := Get_GameProfiles_Settings()
+			Declare_GameProfiles_Settings(gameProfilesSettings)
+
+			GoSub Gui_Settings_RefreshWindows
+			GoSub Gui_Settings_RefreshSettings
+		}
+	Return
+
+	Gui_Settings_RemoveSelectedWindow:
+/*		Remove the selected window from "My Settings"
+*/	
+		GoSub, Gui_Settings_Submit
+
+		RegExMatch(GuiSettings_Submit.LB_MySettings, "(.*?).exe", selectedItem)
+		if (selectedItem) {
+			; Remove this executable from file
+			IniDelete,% ProgramValues.Ini_File,% selectedItem
+			gameProfilesSettings := Get_GameProfiles_Settings()
+			Declare_GameProfiles_Settings(gameProfilesSettings)
+
+			; Disable the sliders
+			Gui_Control("Settings", "+Disabled",GuiSettings_Controls.EDIT_SelectedAppGamma)
+			Gui_Control("Settings", "+Disabled",GuiSettings_Controls.SLIDER_SelectedAppGamma)
+			Gui_Control("Settings", "+Disabled",GuiSettings_Controls.EDIT_SelectedAppVibrance)
+			Gui_Control("Settings", "+Disabled",GuiSettings_Controls.SLIDER_SelectedAppVibrance)
+
+			; Refrsh both LB
+			GoSub Gui_Settings_RefreshSettings
+			GoSub Gui_Settings_RefreshWindows
+		}
+	Return
+
+	Gui_Settings_RefreshWindows:
+/*		Refresh the "Running applications"
+*/
+		Gui_Submit(GuiSettings_Controls,"Settings","NoHide")
+
+		GoSub, Gui_Settings_GetMySettings
+		runningApps := Get_Running_Apps(detectHiddenWin, mySettings, "`n")
+
+		Gui_Control("Settings", ,GuiSettings_Controls.LB_RunningApps, "`n" runningApps)
+	Return
+
+	Gui_Settings_RefreshSettings:
+/*		Refresh "My Settings"
+*/
+		GoSub, Gui_Settings_GetMySettings
+
+		Gui_Control("Settings", ,GuiSettings_Controls.LB_MySettings, "`n" mySettings)
+	Return
+
+	Gui_Settings_Help:
+/*		Show the help tooltip
+*/
+		static showToolTip
+		showToolTip := !showToolTip
+
+		if (showToolTip)
+			MsgBox, ,% ProgramValues.Name,% translations.TEXT_ShowHelp
+		else Tooltip
+	Return
+
+	Gui_Settings_Submit:
+/*		Retrieve all controls values into an array
+		Also set the new default gamma/vibrance values
+*/
+		Gui_Submit(GUISettings_Controls, "Settings", "NoHide")
+
+		ProgramSettings.DEFAULT.Gamma 			:= GuiSettings_Submit.EDIT_DefaultGamma
+		ProgramSettings.DEFAULT.Vibrance 		:= GuiSettings_Submit.EDIT_DefaultVibrance
+		; ProgramSettings.SETTINGS.Monitor_ID		:= GuiSettings_Submit.EDIT_MonitorID
+		ProgramSettings.SETTINGS.RunOnStartup 	:= GuiSettings_Submit.CB_RunOnStartup
+	Return
+
+	Gui_Settings_SaveSettings:
+/*		Save the settings into the local file
+		Executable-specific settings do not need to be saved here,
+			as they are automatically saved upon releasing the slider
+*/
+		; IniWrite,% GuiSettings_Submit.EDIT_MonitorID,% ProgramValues.Ini_File,SETTINGS,Monitor_ID
+		IniWrite,% GuiSettings_Submit.CB_RunOnStartup,% ProgramValues.Ini_File,SETTINGS,RunOnStartup
+
+		IniWrite,% GuiSettings_Submit.EDIT_DefaultGamma,% ProgramValues.Ini_File,DEFAULT,Gamma
+		IniWrite,% GuiSettings_Submit.EDIT_DefaultVibrance,% ProgramValues.Ini_File,DEFAULT,Vibrance
+
+		Update_Startup_Shortcut()
+	Return
+
+	Gui_Settings_Close:
+/*		Close the GUI, saving all settings
+*/		GoSub Gui_Settings_Submit
+		GoSub Gui_Settings_SaveSettings
+
+		localSettings := Get_Local_Settings()
+		Declare_Local_Settings(localSettings)
+
+		gameProfilesSettings := Get_GameProfiles_Settings()
+		Declare_GameProfiles_Settings(gameProfilesSettings)
+
+		Gui, Settings:Destroy
+	Return
+}
+
+Set_ThisApp_Settings(winExe="", isHotkey=0) {
+	global GameList, GameProfiles, ProgramSettings
+	static previousMon
+
+	; Get active win exe
+	if (winExe = "") {
+		WinGet, winExe, ProcessName, A
 	}
-	if ( rtrn = "Ctrl_Found" ) {
-		ctrlStatic := "Static" i, ctrlStaticText := ctrlText
-		IniWrite,Static%i%,% iniFilePath,SETTINGS,AdjustDesktopCtrl
-		IniWrite,% ctrlStaticText,% iniFilePath,SETTINGS,AdjustDesktopCtrlText
-		Reload_Func()
+
+	StartTime := A_TickCount
+
+	currentMon := GetMonitorIndexFromWindow(), currentMon-- ; ; We must remove 1, as nvidia index starts at 0
+	isFullScreen := Is_Window_FullScreen()
+
+	; Set this executable settings
+	if winExe in %GameList%
+	{
+		NVIDIA_Set_Settings(GameProfiles[winExe]["Gamma"], GameProfiles[winExe]["Vibrance"], currentMon, isFullScreen, isHotkey)
 	}
-	else if ( rtrn = "Ctrl_Not_Found" ) {	; Couldn't find automatically. User probably has nvcpl in another language than the supported list. We ask the user to locate it
-		ctrlArray := Gui_Get_Control("Adjust desktop color settings")
-		ctrlStatic := ctrlArray[1], ctrlStaticText := ctrlArray[2]
-		IniWrite,% ctrlStatic,% iniFilePath,SETTINGS,AdjustDesktopCtrl
-		IniWrite,% ctrlStaticText,% iniFilePath,SETTINGS,AdjustDesktopCtrlText
-		Reload_Func()
+	; Set default settings
+	else {
+		NVIDIA_Set_Settings(ProgramSettings.DEFAULT.Gamma, ProgramSettings.DEFAULT.Vibrance, currentMon, isFullScreen, isHotkey)
+	}
+
+	EndTime := A_TickCount
+
+	previousMon := currentMon
+}
+
+ShellMessage(wParam,lParam) {
+/*			Triggered upon activating a window
+ *			Is used to correctly position the Trades GUI while in Overlay mode
+*/
+	global NVIDIA_Values
+	global NVIDIA_Set_Settings_FullScreen_CANCEL
+	global NVIDIA_Set_Settings_FullScreen_START
+	global NVIDIA_Set_Settings_FullScreen_HANDLE
+
+	if ( wParam=4 or wParam=32772 ) { ; 4=HSHELL_WINDOWACTIVATED | 32772=HSHELL_RUDEAPPACTIVATED
+		WinGet, winExe, ProcessName,% "ahk_id " lParam
+		Set_ThisApp_Settings(winExe)
+		if (NVIDIA_Set_Settings_FullScreen_START && lParam != NVIDIA_Set_Settings_FullScreen_HANDLE) {
+			NVIDIA_Set_Settings_FullScreen_CANCEL := true
+		}
 	}
 }
-	
-Is_Window_FullScreen(process, title) {
+
+Is_Window_FullScreen(_handle="") {
 ;			Detects if the window is fullscreen
 ;			 by checking its style and size
-	hwnd := WinExist( title " ahk_exe " process )
-	WinGet style, Style, ahk_id %hwnd%
-	WinGetPos, , , w, h, ahk_id %hwnd%
-	state := ( (style & 0x20800000) || h < A_ScreenHeight || w < A_ScreenWidth ) ? false : true
+	if (_handle = "") {
+		WinGet, _handle, ID, A
+	}
+	WinGet _Style, Style, ahk_id %_handle%
+	WinGetPos, , , w, h, ahk_id %_handle%
+	state := ( (_Style & 0x20800000) || h < A_ScreenHeight || w < A_ScreenWidth ) ? false : true
 	return state
 }
 
-Prevent_Multiple_Instancies() {
-;			Prevent from running multiple instancies of the program
-;			Check if an instancie already exist and close the current instancie if so
-	IniRead, runningProcess,% iniFilePath,SETTINGS,FileName
-	Process, Exist, %runningProcess%
-	runningPID := ErrorLevel
-	if ( runningPID ) {
-		currentPID := DllCall("GetCurrentProcessId")
-		if ( runningPID <> currentPID ) {
-			OnExit("Exit_Func", 0)
-			ExitApp	
-		}
-	}
+IsNum(str) {
+	if str is number
+		return true
+	return false
 }
 
-;==================================================================================================================
+Set_ActiveWindow_Settings(winID="", gamma="", vibrance="") {
+	global ProgramValues, ProgramSettings
 
-Get_Translation(sect, lang, ctrlName="") {
-;			Retrieve the translation for that specific section
-;			Returns an array
-;			Update the Tray Menu, unless it's the section
-	if ( lang = "" )
-		lang := "EN"
-	if ( sect <> "Tray_Menu" )
-		Create_Tray_Menu(lang)
-	
-;	GUI Control and their translation
-	if ( sect = "Gui_Lang" ) {
-		if ( lang = "EN" ) {
-			text1 := "Select a language:", text2 := "Can changed anytime from the [Settings] menu.", text3 := "|EN-English|FR-French", text4 := "Apply"
-		}
-		if ( lang = "FR" ) {
-			text1 := "Choisissez une langue:", text2 := "Peut être changée depuis le menu [Options].", text3 := "|EN-Anglais|FR-Français", text4 := "Appliquer"
+	defGamma := ProgramSettings.DEFAULT.Gamma
+	defVibrance := ProgramSettings.DEFAULT.Vibrance
+	detectHiddenWin := A_DetectHiddenWindows
+	DetectHiddenWindows, On
+
+;	Get win handle, if not specified
+	if !(winID) {
+		WinGet, winID, ID, A
+	}
+;	Get win process name, and its settings
+	WinGet, winEXE, ProcessName,% "ahk_id " winID
+	IniRead, this_gamma,% ProgramValues.Ini_File,% winExe,Gamma
+	IniRead, this_vibrance,% ProgramValues.Ini_File,% winExe,Vibrance
+	if (IsNum(this_gamma) && IsNum(this_vibrance)) && ( (this_gamma != defGamma) || (this_vibrance != defVibrance)) {
+/*	Do the  switch thing
+*/
+	}
+
+	DetectHiddenWindows, %detectHiddenWin%
+}
+
+Get_Running_Apps(_detectHiddenWin=false, _excludedProcesses="", _separator="") {
+	hiddenWindows := A_DetectHiddenWindows
+	_detectHiddenWin := (_detectHiddenWin=true)?("On"):(_detectHiddenWin=false)?("Off"):(_detectHiddenWin)
+	DetectHiddenWindows,% _detectHiddenWin
+
+	excludedProcesses := "explorer.exe,autohotkey.exe,nvcplui.exe," A_ScriptName
+	if (_excludedProcesses && _separator) {
+		_excludedProcesses := StrReplace(_excludedProcesses, _separator, ",")
+	}
+	_excludedProcesses .= excludedProcesses
+
+	WinGet, allWindows, List
+	Loop, %allWindows% 
+	{ 
+		WinGetTitle, winTitle, % "ahk_id " allWindows%A_Index%
+		WinGet, winExe, ProcessName, %winTitle%
+		if (winExe) { ; Hide those who dont have a process attached
+			if winExe not in %_excludedProcesses%
+			{
+				winList .= winExe " // " winTitle "`n"
+			}
 		}
 	}
-	if ( sect = "Gui_Settings" ) {
-		if ( lang = "EN" ) {
-			text1 := "Run the program on system startup?", text2 := "Language:", text3 := "|EN-English|FR-French", text4 := "Hidden`nWindows", text5 := "Refresh"
-			text6 := "Help?", text7 := "Gamma", text8 := "Default", text9 := "Vibrance", text10 := "Default", text11 := "Monitor ID:"
-		}
-		if ( lang = "FR" ) {
-			text1 := "Démarrer le programme au démarrage?", text2 := "Langue:", text3 := "|EN-Anglais|FR-Français", text4 := "Fenètres`nCachées", text5 := "Actualiser"
-			text6 := "Aide?", text7 := "Gamma", text8 := "Défaut", text9 := "Vibrance", text10 := "Défaut", text11 := "ID Écran:"
-		}
-	}
-	if ( sect = "Gui_About" ) {
-		transArray := Get_Translation("Tray_Menu", lang) ; 1: Settings
-		transArray2 := Get_Translation("Gui_Settings", lang) ; 6: Help
-		if ( lang = "EN" ) {
-			text1  := "Hello, thank you for using " programName "!", text2 := "It allows NVIDIA GPU owners to have custom gamma/vibrance profiles for their games.`n" "Say goodbye to the old boring global profile!"
-			text3:= "If you would like to get started, select [" transArray[1] "] from the tray menu.`n" "Once over there, hover the [" transArray2[6] "] button to get some instructions."
-			text4 := "<a href=""https://github.com/lemasato/Game-Vivifier"">See on GitHub</a>", text5 := "<a href=""https://autohotkey.com/boards/viewtopic.php?t=9455"">See on AutoHotKey Forums</a>"
-		}
-		
-		if ( lang = "FR" ) {
-			text1 := "Bonjour, merci d'utiliser " programName "!", text2 := "Il permet aux possésseurs de GPU NVIDIA d'avoir des profiles personnalisés pour leur jeux.`n" "Dites adieu au fastidieux profile global unique!"
-			text3 := "Si vous souhaitez commencer, choisissez [" transArray[1] "] depuis le menu de barre d'état`n" "Une fois celà fait, passez le curseur sur le bouton [" transArray2[6] "] pour obtenir des instructions."
-			text4 := "<a href=""https://github.com/lemasato/Game-Vivifier"">Voir sur GitHub</a>", text5 := "<a href=""https://autohotkey.com/boards/viewtopic.php?t=9455"">Voir sur AutoHotKey Forums</a>"
-		}
-	}
-	if ( sect = "Gui_Update" ) {
-		if ( lang = "EN" ) {
-			text1 := "Would you like to update now?"
-			text2 := "The process is automatic, only your permission is required."
-			text3 := "Accept", text4 := "Refuse", text5 := "Open the download page"
-			text6 := "Receive updates automatically from now"
-		}
-		if ( lang = "FR" ) {
-			text1 := "Voudriez-vous mettre à jour maintenant?"
-			text2 := "Le procédé est auto, seule votre permission est requise."
-			text3 := "Accepter", text4 := "Refuser", text5 := "Ouvrir la page de téléchargement"
-			text6 := "Recevoir les prochaines mises à jour automatiquement"
-		}
-	}
-	if ( sect = "Gui_Get_Control" ) {
-		if ( lang = "EN" ) {
-			text1 := "Couldn't retrieve the control ID for ''" ctrlName "''!`nYou will have to manually click on it."
-			text2 := "This error is because your NVCPL's language is different than [EN/FR]."
-			text3 := "Please, wait for the NVIDIA Control Panel to open`nthen click on " ctrlName "."
-			text4 := ">> Click to see an helpful screenshot <<", text5 := "Control retrieved:", text6 := "Expected (example):"
-			text7 := "If you wish to help in making the process automatic for your language,`nplease post the content of the box below on the autohotkey.com thread! (CLICK)"
-			text8 := "VALIDATE"
-		}
-		if ( lang = "FR" ) {
-			text1 := "Impossible de récupérer l'ID pour ''" ctrlName "''!`nVous devrez cliquer manuellement dessus."
-			text2 := "Cette erreur est due à la langue du NVCPL étant différente de [EN/FR]."
-			text3 := "Veuillez attendre l'ouverture du Panneau de configuration NVIDIA,`npuis cliquez sur " ctrlName "."
-			text4 := ">> Cliquer pour voir un screenshot <<", text5 := "Control récupéré:", text6 := "Présumé (example):"
-			text7 := "Si vous souhaitez aider à rendre le procédé automatisé pour votre language,`nveuillez poster le contenu ci-dessous sur le sujet autohotkey.com! (CLICK)"
-			text8 := "VALIDER"
-		}
-	}
-	if ( sect = "Tray_Tip" ) {
-		transArray := Get_Translation("Tray_Menu", lang) ; 1: Settings - 2:About
-		if ( lang = "EN" ) {
-			text1 := "Right click on the tray icon then`n>> [" transArray[1] "] for profiles.`n>> [" transArray[2] "] for infos."
-		}
-		if ( lang = "FR" ) {
-			text1 := "Clic droit sur l'icône puis`n>>[" transArray[1] "] pour les profiles.`n>>[" transArray[2] "] pour des infos."
-		}
-	}
-	if ( sect = "Tray_Menu" ) {
-		if ( lang = "EN" ) {
-			text1 := "Settings", text2 := "About?", text3 := "NVCPL Hidden", text4 := "Reload", text5 := "Close"
-		}
-		if ( lang = "FR" ) {
-			text1 := "Options", text2 := "À Propos?", text3 := "NVCPL Caché", text4 := "Recharger", text5 := "Quitter"
-		}
-	}
-	if ( sect = "Program_Exit" ) {
-		if ( lang = "EN" ) {
-			text1 := "Do you really wish to close " programName "?"			
-		}
-		if ( lang = "FR" ){
-			text1 := "Souhaitez-vous vraiment fermer " programName "?"
-		}
-	}
-	if ( sect = "Check_nvStatic") {
-		if ( lang = "EN" ) {
-			text1 := "Currently checking if the control is valid.", text2 := " Faileds."
-		}
-		if ( lang = "FR" ) {
-			text1 := "Vérification du control en cours.", text2 := " Echouées."
-		}
-	}
-	textArray := []
+	Sort, winList, U ; Sort alphabetically and remove dupes
+
+	DetectHiddenWindows,% hiddenWindows
+
+	Return winList
+
+}
+
+
+
+Gui_About(params="") {
+	static
+	global ProgramValues, ProgramSettings
+	global GuiAbout_Controls := {}
+	global GuiAbout_Submit := {}
+
+	iniFilePath := ProgramValues.Ini_File, programName := ProgramValues.Name
+	verCurrent := ProgramValues.Version, verLatest := ProgramValues.Version_Latest
+	isUpdateAvailable := ProgramValues.Update_Available, onlineVersionAvailable := ProgramValues.Version_Online
+	paypalPicture := ProgramValues.Others_Folder "\DonatePaypal.png"
+
+	IniRead, isAutoUpdateEnabled,% iniFilePath,PROGRAM,Auto_Update
+
+;	Parse changelogs
+	FileRead, changelogText,% ProgramValues.Changelogs_File
+	allChanges := Object()
+	allVersions := ""
 	Loop {
-		if ( text%A_Index% <> "" )
-			textArray.InsertAt(A_Index, text%A_Index%)
-		else break
+		if RegExMatch(changelogText, "sm)\\\\.*?--(.*?)--(.*?)//(.*)", subPat) {
+			version%A_Index% := subPat1, changes%A_Index% := subPat2, changelogText := subPat3
+			StringReplace, changes%A_Index%, changes%A_Index%,`n,% "",0			
+			allVersions .= version%A_Index% "|"
+			allChanges.Insert(changes%A_Index%)
+		}
+		else
+			break
 	}
-	return textArray
+
+	labelPrefix := "Gui_About_"
+	Gui, About:Destroy
+	Gui, About:New, +HwndaboutGuiHandler +AlwaysOnTop +SysMenu -MinimizeBox -MaximizeBox +OwnDialogs +LabelGui_About_,% programName " by lemasato v" verCurrent
+
+	translations := Get_Translations(A_ThisFunc)
+	textContent := (isUpdateAvailable)?(translations.GB_UpdateAvailable " v" onlineVersionAvailable):(translations.GB_UpdateNotAvailable)
+	Gui_Add({_Name:"About",_Font:"Segoe UI",_Type:"GroupBox",_Content:textContent,_Pos:"xm ym w500 h85",_Color:"Black",_Var:"GB_UpdateAvailable",_Opts:"Section"})
+	Gui_Add({_Type:"Text",_Content:translations.TEXT_CurrentVersion A_Tab A_Tab verCurrent,_Pos:"xs+20 ys+20"})
+	Gui_Add({_Type:"Text",_Content:translations.TEXT_LatestVersion A_Tab A_Tab ProgramValues.Version_Latest,_Handler:"hTXT_LatestVersion",_Pos:"xp y+5"})
+	if (isUpdateAvailable) {
+		Gui_Add({_Type:"Button",_Content:translations.BTN_Update,_Pos:"x+25 yp-3 h20"})
+		Gui_Control("About", "+cBlue", GuiAbout_Controls.GB_UpdateAvailable)
+		Gui_Control("About", "+cBlue", GuiAbout_Controls.TXT_LatestVersion)
+	}
+	Gui_Add({_Type:"Checkbox",_Content:translations.CB_EnableAutomaticUpdates,_Pos:"xs+20 y+8",_Var:"CB_AutoUpdate",_CB_State:isAutoUpdateEnabled})
+	Gui_Add({_Type:"DropDownList",_Content:allVersions,_Pos:"xm y+20 w500",_Label:labelPrefix "DDL_OnVersionChoose",_Var:"DDL_Version",_Opts:"R10 AltSubmit"})
+	Gui_Control("About", "Choose", GuiAbout_Controls.DDL_Version, "|1")
+	Gui_Add({_Type:"Edit",_Pos:"xm y+5 wp",_Var:"EDIT_Changelogs",_Opts:"R15 ReadOnly"})
+	Gui_Add({_Type:"Text",_Content:translations.TEXT_SeeOn,_Pos:"xm y+10"})
+	Gui_Add({_Type:"Link",_Content:"<a href="""">GitHub</a>",_Pos:"x+5",_Label:"Link_GitHub"})
+	Gui_Add({_Type:"Text",_Content:"-",_Pos:"x+5"})
+	Gui_Add({_Type:"Link",_Content:"<a href="""">AHK Forums</a>",_Pos:"x+5",_Label:"Link_AHK"})
+	Gui_Add({_Type:"Picture",_Content:paypalPicture,_Pos:"x435 yp-7",_Label:"Link_Paypal"})
+	Gui, About:Show, NoActivate x-600 y0
+	Return
+
+	Gui_About_DDL_OnVersionChoose:
+		GoSub Gui_About_Submit
+		versionID := GuiAbout_Submit.DDL_Version
+		Gui_Control("About", ,GuiAbout_Controls.EDIT_Changelogs, allChanges[versionID])
+	Return
+
+
+
+	Gui_About_Submit:
+		Gui_Submit(GuiAbout_Controls, "About", "NoHide")
+	Return
+	
+	Version_Change:
+		Gui, About:Submit, NoHide
+		GuiControl, About:,%ChangesTextHandler%,% allChanges[verNum]
+		Gui, About:Show, AutoSize
+	return
+
+	Github_Link:
+		Run,% ProgramValues.GitHub
+	Return
+
+	GGG_Link:
+		Run,% ProgramValues.GGG
+	Return
+
+	Paypal_Link:
+		Run,% ProgramValues.Paypal
+	Return
+
+	Gui_About_Update:
+		Download_Updater()
+	Return
+
+	Gui_About_Close:
+		GoSub Gui_About_Submit
+
+		IniWrite,% GuiAbout_Submit.CB_AutoUpdate,% iniFilePath,PROGRAM,Auto_Update
+		Gui, About:Destroy
+	Return
+
+	Link_GitHub:
+		Run,% ProgramValues.Link_GitHub
+	Return
+	Link_AHK:
+		Run,% ProgramValues.Link_AHK
+	Return
+	Link_Paypal:
+		Run,% ProgramValues.Paypal
+	Return
+
+	Link_NVIDIA_Screenshot:
+		Run,% "https://raw.githubusercontent.com/lemasato/Game-Vivifier/master/Screenshots/Nvidia Control Panel.png"
+	Return
 }
 
-Set_Translation(sect, lang, handlers, trans) {
-	if ( sect = "Gui_Lang" ) {
-		Loop {
-			if ( handlers[A_Index] = "" )
-				break
-			GuiControl, Lang:,% handlers[A_Index],% trans[A_Index]
-			if ( A_Index = 3 ) && ( lang = "EN" )
-				GuiControl, Choose,% handlers[A_Index],1
-			if ( A_Index = 3 ) && ( lang = "FR" )
-				GuiControl, Choose,% handlers[A_Index],2
+
+
+Gui_GetControl(ctrlName) {
+/*		Ask the user to click on a specific button so we can retrieve its ClassNN
+*/
+	global ProgramValues, ProgramSettings, NVIDIA_Values
+	global GuiGetControl_Controls := {}
+	global GuiGetControl_Submit := {}
+
+	nvHandler := NVIDIA_Values.Handler
+
+	translations := Get_Translations(A_ThisFunc)
+	labelPrefix := "Gui_GetControl_"
+	
+	Gui, GetControl:Destroy
+	Gui, GetControl:New, +AlwaysOnTop +SysMenu -MinimizeBox -MaximizeBox +OwnDialogs +LabelGui_GetControl_ +hwndhGuiGetControl,% ProgramValues.Name
+	Gui_Add({_Name:"GetControl",_Font:"Segoe UI",_Type:"Text",_Content:translations.TEXT_AutoFailed})
+	Gui_Add({_Type:"Link",_Content:"<a>" translations.TEXT_ClickForScreenshot "</a>",_Label:"Link_NVIDIA_Screenshot",_Pos:"y+5"})
+	Gui_Add({_Type:"Text",_Content:translations.TEXT_Expected,_Pos:"xm y+25"})
+	Gui_Add({_Type:"Edit",_Content:"Static2",_Pos:"xp+60 yp-5 w80",_Var:"EDIT_Expected",_Opts:"ReadOnly"})
+	Gui_Add({_Type:"Text",_Content:translations.TEXT_Example,_Pos:"x+5"})
+	Gui_Add({_Type:"Text",_Content:translations.TEXT_Retrieved,_Pos:"xm y+10"})
+	Gui_Add({_Type:"Edit",_Pos:"xp+60 yp-5 w80",_Var:"EDIT_Retrieved",_Opts:"ReadOnly"})
+	Gui_Add({_Type:"Button",_Content:translations.BTN_Accept,_Pos:"x+10 yp-7 w100 h30",_Label:labelPrefix "Accept",_Handler:"hBTN_Accept",_Opts:"ReadOnly +Disabled"})
+	Gui_Add({_Type:"Text",_Content:translations.TEXT_Contribute,_Pos:"xm y+20"})
+	Gui_Add({_Type:"Edit",_Pos:"xm w300",_Var:"EDIT_RetrievedText",_Opts:"ReadOnly"})
+	Gui, GetControl:Show
+
+	SetTimer, Gui_GetControl_Refresh, 100
+	WinWait, ahk_id %hGuiGetControl%
+	WinWaitClose, ahk_id %hGuiGetControl%
+	
+	return [retrieved, retrievedText]	
+	
+	Gui_GetControl_Close:
+	return
+	
+	Gui_GetControl_Escape:
+	return
+	
+	Gui_GetControl_Accept:
+		Gui_Submit(GuiGetControl_Controls, "GetControl", "NoHide")
+		retrieved 			:= GuiGetControl_Submit["EDIT_Retrieved"]
+		retrievedText 		:= GuiGetControl_Submit["EDIT_RetrievedText"]
+		expected 			:= GuiGetControl_Submit["EDIT_Expected"]
+
+		if retrieved contains %expected%
+		{
+			SetTimer, Gui_GetControl_Refresh, Delete
+			Gui, GetControl:Destroy
 		}
-	}
-	if ( sect = "Gui_Settings" ) {
-		Loop {
-			if ( handlers[A_Index] = "" )
-				break
-			GuiControl, Settings:,% handlers[A_Index],% trans[A_Index]
-			if ( A_Index = 3 ) && ( lang = "EN" )
-				GuiControl, Choose,% handlers[A_Index],1
-			if ( A_Index = 3 ) && ( lang = "FR" )
-				GuiControl, Choose,% handlers[A_Index],2
+	return
+	
+	Gui_GetControl_Refresh:
+		KeyWait, LButton, D
+		if !WinActive("ahk_exe nvcplui.exe")
+			Return
+		nvHandler := WinActive("ahk_exe nvcplui.exe")
+
+		MouseGetPos, , , , ctrlName, ahk_id %nvHandler%
+		ControlGetText, ctrlText,% ctrlName, ahk_id %nvHandler%
+		if !(ctrlText)
+			Return
+
+		if ctrlName contains Static
+		{
+			Gui_Control("GetControl", ,GuiGetControl_Controls["EDIT_Retrieved"], ctrlName)
+			Gui_Control("GetControl", ,GuiGetControl_Controls["EDIT_RetrievedText"], ctrlText)
+			Gui_Control("GetControl", "-Disabled",GuiGetControl_Controls["BTN_Accept"])
 		}
-	}
-	if ( sect = "Gui_About" ) {
-		Loop {
-			if ( handlers[A_Index] = "" )
-				break
-			GuiControl, About:,% handlers[A_Index],% trans[A_Index]
+		else {
+			Gui_Control("GetControl", "+Disabled",GuiGetControl_Controls["BTN_Accept"])
 		}
+	return 
+}
+
+
+
+Update_Local_Settings() {
+/*	Cross-release changes that need updating
+*/
+	global ProgramValues
+	iniFile := ProgramValues.Ini_File
+
+;	This setting is unreliable in cases where the user updates to 1.12 (or higher) then reverts back to pre-1.12 since the setting was only added as of 1.12
+	IniRead, priorVer,% iniFile,% "PROGRAM",% "Version",% "UNKNOWN"
+	priorVerNum := (priorVer="UNKNOWN")?(ProgramValues.Version):(priorVer)
+
+	subVersions := StrSplit(priorVersionNum, ".")
+	mainVer := subVersions[1], releaseVer := subVersions[2], patchVer := subVersions[3]
+
+;	Example. This will handle changes that happened between 2.1 and current.
+	if (mainVer = 2 && releaseVer < 1) {
+
 	}
-	if ( sect = "Gui_Update" ) {
-		Loop {
-			if ( handlers[A_Index] = "" )
-				break
-			GuiControl, Update:,% handlers[A_Index],% trans[A_Index]
-		}
-	}
-	if ( sect = "Gui_Get_Control" ) {
-		Loop {
-			if ( handlers[A_Index] = "" )
-				break
-			GuiControl, GetControl:,% handlers[A_Index],% trans[A_Index]
+
+	priorVer := "UNKNOWN"
+	if (priorVer = "UNKNOWN") { ; Pre 2.1 settings.
+
+		; Remove these settings as they have been placed in PROGRAM now
+		IniDelete,% iniFile, SETTINGS, PID
+		IniDelete,% iniFile, SETTINGS, FileName
+		IniDelete,% iniFile, SETTINGS, AutoUpdate
+		; Remove these aswell, no longer used
+		IniDelete,% iniFile, SETTINGS, StartHidden
+		IniDelete,% iniFile, SETTINGS, MonitorID
+
+		; Rename these settings, they are now in a new section
+		keys := ["AdjustDesktopCtrl","AdjustDesktopCtrlText","Path"]
+		newKeys := ["Control_AdjustDesktop","Control_AdjustDesktopText","Location"]
+		for id, iniKey in keys {
+			IniRead, value,% iniFile,SETTINGS,% iniKey
+			if (value != "ERROR" && value != "") {
+				IniDelete,% iniFile, SETTINGS,% iniKey
+				IniWrite,% value,% iniFile,NVIDIA_PANEL,% newKeys[id]
+			}
 		}
 	}
 }
 
-;==================================================================================================================
 
-Update_Startup_Shortcut() {
-;			Remove the old shortcut and place the new one
-;			Or just remove it if it isn't supposed to run on startup anymore
-	IniRead, state,% iniFilePath,SETTINGS,RunOnStartup
-	if ( state ) {
-		FileDelete, % A_Startup "\" programName ".lnk"
-		FileCreateShortcut, % A_ScriptFullPath, % A_Startup "\" programName ".lnk"
+
+Logs_Append(funcName, params) {
+	global ProgramValues, ProgramSettings
+
+	programName := ProgramValues.Name
+	programVersion := ProgramValues.Version
+	iniFilePath := ProgramValues.Ini_File
+	logsFile := ProgramValues.Logs_File
+
+	if ( funcName = "START" ) {
+		FileDelete,% logsFile
+
+		OSbits := (A_Is64bitOS)?("64bits"):("32bits")
+		IniRead, programSectionContent,% iniFilePath,PROGRAM
+
+		paramsKeysContent := ""
+		for key, element in params.KEYS {
+			paramsKeysContent .= params.KEYS[A_Index] ": """ params.VALUES[A_Index] """`n"
+		}
+
+		appendToFile := ""
+		appendToFile := ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>`n"
+						. ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>`n"
+						. ">>> OS SECTION `n"
+						. ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>`n"
+						. "Type: " A_OSType "`n"
+						. "Version: " A_OSVersion "(" OSbits ")`n"
+						. "DPI: " dpiFactor "`n"
+						. "`n"
+						. ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>`n"
+						. ">>> TOOL SECTION `n"
+						. ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>`n"
+						. "Version: " ProgramValues.Version "`n"
+						. "Local_Folder: " ProgramValues.Local_Folder "`n"
+						. "Game_Folder: " ProgramValues.Game_Folder "`n"
+						. "`n"
+						. ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>`n"
+						. ">>> PROGRAM SECTION `n"
+						. ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>`n"
+						. programSectionContent "`n"
+						. "`n"
+						. ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>`n"
+						. ">>> GAME SETTINGS `n"
+						. ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>`n"
+						. gameSettingsContent 
+						. "`n"
+						. ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>`n"
+						. ">>> LOCAL SETTINGS `n"
+						. ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>`n"
+						. paramsKeysContent
+						. "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<`n"
+						. "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<`n"
+	}
+
+	else {
+		appendToFile := "[" A_YYYY "/" A_MM "/" A_DD " " A_Hour ":" A_Min ":" A_Sec "] "
+
+		if ( funcName = "DEBUG_STRING" ) {
+			appendToFile := params.String
+		}
+
+		else if (funcName = "ShellMessage" ) {
+			appendToFile .= "Trades GUI Hidden: Show_Mode: " params.Show_Mode " - Dock_Window ID: " params.Dock_Window " - Current Win ID: " params.Current_Win_ID "."
+		}
+
+	}
+
+	if (appendToFile) {
+		FileAppend,% appendToFile "`n",% logsFile
+	}
+}
+
+Get_Control_Coords(guiName, ctrlHandler) {
+/*		Retrieve a control's position and return them in an array.
+		The reason of this function is because the variable content would be blank
+			unless its sub-variables (coordsX, coordsY, ...) were set to global.
+			(Weird AHK bug)
+*/
+	GuiControlGet, coords, %guiName%:Pos,% ctrlHandler
+	return {X:coordsX,Y:coordsY,W:coordsW,H:coordsH}
+}
+
+Get_Text_Control_Size(txt, fontName, fontSize, maxWidth="") {
+/*		Create a control with the specified text to retrieve
+ *		the space (width/height) it would normally take
+*/
+	Gui, GetTextSize:Font, S%fontSize%,% fontName
+	if (maxWidth) 
+		Gui, GetTextSize:Add, Text,x0 y0 +Wrap w%maxWidth% hwndTxtHandler,% txt
+	else 
+		Gui, GetTextSize:Add, Text,x0 y0 hwndTxtHandler,% txt
+	coords := Get_Control_Coords("GetTextSize", TxtHandler)
+	Gui, GetTextSize:Destroy
+
+	return coords
+
+/*	Alternative version, with auto sizing
+
+	Gui, GetTextSize:Font, S%fontSize%,% fontName
+	Gui, GetTextsize:Add, Text,x0 y0 hwndTxtHandlerAutoSize,% txt
+	coordsAuto := Get_Control_Coords("GetTextSize", TxtHandlerAutoSize)
+	if (maxWidth) {
+		Gui, GetTextSize:Add, Text,x0 y0 +Wrap w%maxWidth% hwndTxtHandlerFixedSize,% txt
+		coordsFixed := Get_Control_Coords("GetTextSize", TxtHandlerFixedSize)
+	}
+	Gui, GetTextSize:Destroy
+
+	if (maxWidth > coords.Auto)
+		coords := coordsAuto
+	else
+		coords := coordsFixed
+
+	return coords
+*/
+}
+
+Tray_Notifications_Adjust(fromNum, creationOrder) {
+	global TrayNotifications_Handles
+
+	RegExMatch(fromNum, "\d", fromNum)
+
+	Loop, Parse, creationOrder,% ","
+	{
+		reverse := A_LoopField "," reverse
+	}
+
+	Loop, Parse, reverse,% "," 
+	{
+		if (A_LoopField) {
+			
+			if (gotem) {
+				
+				WinGetPos, , pY, , pH,% "ahk_id " TrayNotifications_Handles[previous]
+				WinGetPos, , tY, , tH,% "ahk_id " TrayNotifications_Handles[A_LoopField]
+				formula := (previous = fromNum)?(pY-(tH-pH)):(py-tH-10)
+				; msgbox Moving %A_Loopfield% to %previous% - %creationOrder% - %reverse%
+				WinMove,% "ahk_id " TrayNotifications_Handles[A_LoopField], , ,% formula
+			}
+			if (A_LoopField = fromNum)
+				gotEm := true
+			else {
+				newOrder .= A_Loopfield ","
+			}
+
+			previous := A_Loopfield
+		}
+	}
+
+	creationOrder := StrReplace(creationOrder, fromNum, "", "")
+	Loop, Parse, creationOrder,% ","
+	{
+		if (A_LoopField)
+			finalOrder .= A_LoopField ","
+	}
+
+	Return finalOrder
+}
+
+Tray_Notifications_Show(title, msg, params="") {
+/*		Show a notification.
+ *		Look based on w10 traytip.
+*/
+	static
+	global SkinAssets, ProgramSettings, ProgramValues
+	global TrayNotifications_Values, TrayNotifications_Handles
+
+;	Monitor infos
+	local MonitorCount, MonitorPrimary, MonitorWorkArea
+	local MonitorWorkAreaTop, MonitorWorkAreaBottom, MonitorWorkAreaLeft, MonitorWorkAreaRight
+	SysGet, MonitorCount, MonitorCount
+	SysGet, MonitorPrimary, MonitorPrimary
+	SysGet, MonitorWorkArea, MonitorWorkArea,% MonitorPrimary
+
+	; Calculating GUI size, based on content
+	guiWidthMax := 350
+	guiFontName := "Segoe UI", guiFontSize := "9", guiTitleFontSize := "10"
+	textSize := Get_Text_Control_Size(msg, guiFontName, guiFontSize, guiWidthMax)
+
+	; Declaring gui size
+	guiWidth 	:= textSize.W
+	guiHeight 	:= textSize.H
+	borderSize 	:= 1
+
+	; Fitting size
+	guiHeight += 50, guiWidth += 20 ; Fitting size
+	
+	; Get first avaialble notification to replace
+	index := 1
+	Loop 5 {
+		local winHandle := TrayNotifications_Handles[A_Index]
+		if WinExist("ahk_id " winHandle) {
+			index++
+		}
+		else Break
+	}
+	; Create a list of order of creation, as long as we didnt reach the max of 5 notifications
+	if !(index > 5) {
+		creationOrder .= index ","
+	}
+	; We reached the max. So we replace the oldest available notification.
+	else {
+		index := SubStr(creationOrder,1,1)
+		StringTrimLeft, creationOrder, creationOrder, 2
+		creationOrder .= index ","
+		tooltip % creationOrder
+	}
+	; Make sure the list doesn't go beyond 10 chars (5 number and 5 comma)
+	len := StrLen(creationOrder)
+	if (len > 10) {
+		StringTrimRight, creationOrder, creationOrder,% len-10
+	}
+
+	; Parameters
+	fadeTimer := (params.Fade_Timer)?(params.Fade_Timer):(8000)
+	_label := (params.Is_Update)?("Gui_TrayNotification_OnLeftClick_Updater"):("Gui_TrayNotification_OnLeftClick")
+
+
+	Gui, TrayNotification%index%:Destroy
+	Gui, TrayNotification%index%:New, +ToolWindow +AlwaysOnTop -Border +LastFound -SysMenu -Caption +LabelGui_TrayNotification_ +hwndhGuiTrayNotification%index%
+
+	if !(TrayNotifications_Handles)
+		TrayNotifications_Handles := {}
+	TrayNotifications_Handles[index] := hGuiTrayNotification%index%
+	
+
+	Gui, TrayNotification%index%:Margin, 0, 0
+	Gui, TrayNotification%index%:Color, 1f1f1f
+
+	Gui, TrayNotification%index%:Add, Progress, x0 y0 w%guiWidth% h%borderSize% Background484848 ; Top
+	Gui, TrayNotification%index%:Add, Progress, x0 y0 w%borderSize% h%guiHeight% Background484848 ; Left
+	Gui, TrayNotification%index%:Add, Progress,% "x" guiWidth-borderSize " y0" " w" borderSize " h" guiHeight " Background484848" ; Right
+	Gui, TrayNotification%index%:Add, Progress,% "x" 0 " y" guiHeight-borderSize " w" guiWidth " h" borderSize " Background484848" ; Bottom
+	Gui, TrayNotification%index%:Add, Text,% "x0 y0 w" guiWidth " h" guiHeight " BackgroundTrans g" _label,% ""
+
+	Gui, TrayNotification%index%:Add, Picture, x5 y5 w24 h24 hwndhIcon,% ProgramValues.Others_Folder "\icon.ico"
+	Gui, TrayNotification%index%:Font, S%guiTitleFontSize% Bold,% guiFontName
+	Gui, TrayNotification%index%:Add, Text,% "xp+35" " yp+5" " w" guiWidth-20 " BackgroundTrans cFFFFFF",% title
+	Gui, TrayNotification%index%:Font, S%guiFontSize% Norm,% guiFontName
+	Gui, TrayNotification%index%:Add, Text,% "xp" " yp+25" " w" guiWidth-40 " BackgroundTrans ca5a5a5",% msg
+	GuiControl, TrayNotification%index%:Move,% hIcon,% "y" (guiHeight/2) - (24/2)
+
+	Gui, TrayNotification%index%:+LastFound
+	WinSet, Transparent, 255
+
+	showX := MonitorWorkAreaRight-guiWidth-10
+	showY := MonitorWorkAreaBottom-guiHeight-10
+	showW := guiWidth, showH := guiHeight
+	Gui, TrayNotification%index%:Show,% "x" showX " y" showY " w" showW " h" showH " NoActivate"
+
+
+	Loop 5 {
+		if (A_Index != index ) {
+			local winHandle := TrayNotifications_Handles[A_Index]
+			if WinExist("ahk_id " winHandle) {
+				WinGetPos, , _y, , _h, ahk_id %winHandle%
+				WinMove, ahk_id %winHandle%, , ,% _y-guiHeight-10
+			}
+		}
+	}
+
+	TrayNotifications_Values := {"New":1, "Index":index} ; New notification, reset transparency from fade
+
+	Tray_Notifications_Fade(index, true)
+	SetTimer, Gui_TrayNotification_Fade_%index%, -%fadeTimer%
+	Return
+
+	Gui_TrayNotification_Fade_1:
+		ret1 := Tray_Notifications_Fade(1)
+		if (ret1) {
+			SetTimer, %A_ThisLabel%, -100
+		}
+		else {
+			creationOrder := Tray_Notifications_Adjust(1, creationOrder)
+			Gui, TrayNotification1:Destroy
+		}
+	Return
+	Gui_TrayNotification_Fade_2:
+		ret2 := Tray_Notifications_Fade(2)
+		if (ret2) {
+			SetTimer, %A_ThisLabel%, -100
+		}
+		else {
+			creationOrder := Tray_Notifications_Adjust(2, creationOrder)
+			Gui, TrayNotification2:Destroy
+		}
+	Return
+	Gui_TrayNotification_Fade_3:
+		ret3 := Tray_Notifications_Fade(3)
+		if (ret3) {
+			SetTimer, %A_ThisLabel%, -100
+		}
+		else {
+			creationOrder := Tray_Notifications_Adjust(3, creationOrder)
+			Gui, TrayNotification3:Destroy
+		}
+	Return
+	Gui_TrayNotification_Fade_4:
+		ret4 := Tray_Notifications_Fade(4)
+		if (ret4) {
+			SetTimer, %A_ThisLabel%, -100
+		}
+		else {
+			creationOrder := Tray_Notifications_Adjust(4, creationOrder)
+			Gui, TrayNotification4:Destroy
+		}
+	Return
+	Gui_TrayNotification_Fade_5:
+		ret5 := Tray_Notifications_Fade(5)
+		if (ret5) {
+			SetTimer, %A_ThisLabel%, -100
+		}
+		else {
+			creationOrder := Tray_Notifications_Adjust(5, creationOrder)
+			Gui, TrayNotification5:Destroy
+		}
+	Return
+
+	Gui_TrayNotification_ContextMenu: ; Launched whenever the user right-clicks anywhere in the window except the title bar and menu bar.
+		creationOrder := Tray_Notifications_Adjust(A_Gui, creationOrder)
+		Gui, %A_GUI%:Destroy
+	Return
+
+	Gui_TrayNotification_OnLeftClick:
+		creationOrder := Tray_Notifications_Adjust(A_Gui, creationOrder)
+		Gui, %A_Gui%:Destroy
+	Return
+
+	Gui_TrayNotification_OnLeftClick_Updater:
+		creationOrder := Tray_Notifications_Adjust(A_Gui, creationOrder)
+		Gui, %A_Gui%:Destroy
+		Download_Updater()
+	Return
+}
+
+Tray_Notifications_Fade(index="", start=false) {
+	static
+	global TrayNotifications_Values
+	global TrayNotifications_Handles
+
+	if (start) {
+		transparency%index% := 255
+	}
+
+	transparency%index% := (0 > transparency%index%)?(0):(transparency%index%-20)
+	
+	Gui, TrayNotification%index%:+LastFound
+	WinSet, Transparent,% transparency%index%
+	return transparency%index%
+}
+
+Download_Updater() {
+	global ProgramValues
+
+	updaterLink 		:= ProgramValues.Updater_Link
+	newVersionLink 		:= ProgramValues.NewVersion_Link
+
+	IniWrite,% A_Now,% ProgramValues.Ini_File,PROGRAM,LastUpdate
+	UrlDownloadToFile,% updaterLink,% ProgramValues.Updater_File
+	Sleep 10
+	if (!ErrorLevel) {
+		Run,% ProgramValues.Updater_File 
+		. " /Name=""" ProgramValues.Name  """"
+		. " /File_Name=""" ProgramValues.Name ".exe" """"
+		. " /Local_Folder=""" ProgramValues.Local_Folder """"
+		. " /Ini_File=""" ProgramValues.Ini_File """"
+		. " /NewVersion_Link=""" newVersionLink """"
+		ExitApp
 	}
 	else {
-		FileDelete, % A_Startup "\" programName ".lnk"
+		translations := Get_Translations("Tray_Notifications")
+		Tray_Notifications_Show(translations.TITLE_UpdaterDownloadFailed, translations.MSG_UpdaterDownloadFailed)
 	}
 }
 
-Program_TrayTip() {
-;			Show a tray tip upon successful launch to notify the user
-	transArray := Get_Translation("Tray_Tip", programLang)
-	TrayTip,% programName " v" programVersion,% transArray[1]
+Check_Update() {
+;			It works by downloading both the new version and the auto-updater
+;			then closing the current instancie and renaming the new version
+	global ProgramValues
+
+	IniRead, isUsingBeta,% ProgramValues.Ini_File,PROGRAM,Update_Beta, 0
+	IniRead, isAutoUpdateEnabled,% ProgramValues.Ini_File,PROGRAM,Auto_Update, 0
+	IniRead, lastTimeUpdated,% ProgramValues.Ini_File,PROGRAM,LastUpdate,% A_Now
+
+	changeslogsLink 		:= (isUsingBeta)?(ProgramValues.Changelogs_Link_Beta):(ProgramValues.Changelogs_Link)
+	versionLinkStable 		:= ProgramValues.Version_Link
+	versionLinkBeta 		:= ProgramValues.Version_Link_Beta
+	currentVersion 			:= ProgramValues.Version
+
+	translations := Get_Translations("Tray_Notifications")
+
+;	Delete files remaining from updating
+	if FileExist(ProgramValues.Updater_File)
+		FileDelete,% ProgramValues.Updater_File
+	if FileExist(ProgramValues.NewVersion_File)
+		FileDelete,% ProgramValues.NewVersion_File
+
+;	Changelogs file
+	Try {
+		Changelogs_WinHttpReq := ComObjCreate("WinHttp.WinHttpRequest.5.1")
+		Changelogs_WinHttpReq.SetTimeouts("10000", "10000", "10000", "10000")
+
+		Changelogs_WinHttpReq.Open("GET", changeslogsLink, true) ; Using true above and WaitForResponse allows the script to r'emain responsive.
+		Changelogs_WinHttpReq.Send()
+		Changelogs_WinHttpReq.WaitForResponse(10) ; 10 seconds
+
+		changelogsOnline := Changelogs_WinHttpReq.ResponseText
+		changelogsOnline = %changelogsOnline%
+		if ( changelogsOnline ) && !( RegExMatch(changelogsOnline, "Not(Found| Found)") ){
+			try 
+				FileRead, changelogsLocal,% ProgramValues.Changelogs_File
+			catch e
+				Logs_Append("DEBUG", {String:"[WARNING]: Failed to read file """ ProgramValues.Changelogs_File """. Does the file exist?"})
+			if ( changelogsLocal != changelogsOnline ) {
+				try
+					FileDelete, % ProgramValues.Changelogs_File
+				catch e
+					Logs_Append("DEBUG", {String:"[WARNING]: Failed to delete file """ ProgramValues.Changelogs_File """. Does the file exist?"})
+				UrlDownloadToFile, % changeslogsLink,% ProgramValues.Changelogs_File
+			}
+		}
+	}
+	Catch e {
+;		Error Logging
+		Logs_Append("WinHttpRequest", {Obj:e})
+		Tray_Notifications_Show(translations.TITLE_ChangelogsDownloadFailed, translations.MSG_ChangelogsDownloadFailed)
+	}
+	
+;	Version.txt on master branch
+	Try {
+		Version_WinHttpReq := ComObjCreate("WinHttp.WinHttpRequest.5.1")
+		Version_WinHttpReq.SetTimeouts("10000", "10000", "10000", "10000")
+
+		Version_WinHttpReq.Open("GET", versionLinkStable, true)
+		Version_WinHttpReq.Send()
+		Version_WinHttpReq.WaitForResponse(10)
+
+		versionOnline := Version_WinHttpReq.ResponseText
+		versionOnline = %versionOnline%
+		if ( versionOnline ) && !( RegExMatch(versionOnline, "Not(Found| Found)") ) { ; couldn't reach the file, cancel update
+			StringReplace, versionOnline, versionOnline, `n,,1 ; remove the 2nd white line
+			versionOnline = %versionOnline% ; remove any whitespace
+		}
+	}
+	Catch e {
+;		Error Logging
+		Logs_Append("WinHttpRequest", {Obj:e})
+		Tray_Notifications_Show(translations.TITLE_VersionFileDownloadFailed, translations.MSG_VersionFileDownloadFailed)
+	}
+
+;	Set version IDs
+	latestStableVersion 	:= (versionOnline)?(versionOnline):("ERROR")
+	latestStableVersion = %latestStableVersion%
+
+	ProgramValues.Version_Latest 		:= latestStableVersion
+	onlineVersionAvailable				:= ProgramValues.Version_Latest
+	ProgramValues.Version_Online 		:= ProgramValues.Version_Latest
+
+;	Set new version number and notify about update
+	isUpdateAvailable := (latestStableVersion != "ERROR" && latestStableVersion != currentVersion)?(1):(0)
+	ProgramValues.Update_Available := isUpdateAvailable
+
+	if ( isUpdateAvailable ) {
+		if (isAutoUpdateEnabled = 1) {
+			timeDif := A_Now
+			EnvSub, timeDif,% lastTimeUpdated, Seconds
+			if (timeDif > 61 || !timeDif) { ; !timeDif means var was not in YYYYMMDDHH24MISS format 
+				Tray_Notifications_Show(onlineVersionAvailable . translations.TITLE_VersionAvailable, translations.MSG_VersionAvailable_AutoUpdate)
+				Download_Updater()
+			}
+		}
+		else {
+			Tray_Notifications_Show(onlineVersionAvailable translations.TITLE_VersionAvailable, translations.MSG_VersionAvailable_AutoUpdate, {Is_Update:1, Fade_Timer:20000, Is_Important:1})
+		}
+	}
+	SetTimer, Check_Update, -1800000
 }
 
-WM_MOUSEMOVE() {
-;			Taken from Alpha Bravo. Shows tooltip upon hovering a gui control
-;			https://autohotkey.com/board/topic/81915-solved-gui-control-tooltip-on-hover/#entry598735
+Update_Startup_Shortcut() {
+/*		Update the startup shortcut, or remove it if disabled
+*/
+	global ProgramSettings, ProgramValues
+
+	FileDelete, % A_Startup "\" ProgramValues.Name ".lnk" ; Remove the old shortcut
+
+	if (ProgramSettings.SETTINGS.RunOnStartup) { ; Place new shortcut, if enabled
+		FileCreateShortcut,% A_ScriptFullPath,% A_Startup "\" ProgramValues.Name ".lnk"
+	}
+}
+
+Create_Tray_Menu() {	
+/*		Create the tray menu
+*/
+	global ProgramValues
+	static tranlations_Hide
+
+	translations := Get_Translations("Tray_Menu")
+	tranlations_Hide := translations.Hide
+
+	Menu, Tray, DeleteAll
+	Menu, Tray, NoStandard
+
+	Menu, Tray, Tip,% ProgramValues.Name
+	Menu, Tray, Add,% translations.Settings, Gui_Settings
+	Menu, Tray, Add,% translations.About, Gui_About
+	Menu, Tray, Add, 
+	Menu, Tray, Add,% translations.Hide, Tray_Hide
+	Menu, Tray, Check,% translations.Hide
+	Menu, Tray, Add
+	Menu, Tray, Add,% translations.Reload, Reload_Func
+	Menu, Tray, Add,% translations.Close, Exit_Func
+	if (A_IconHidden) {
+		Menu, Tray, NoIcon
+		Menu, Tray, Icon
+	}
+	return
+
+	Tray_Hide: 
+		if WinExist("ahk_exe nvcplui.exe") {
+			Menu, Tray, Check,% tranlations_Hide
+			WinHide ahk_id %nvHandler%
+		}
+		else {
+			Menu, Tray, UnCheck,% tranlations_Hide
+			WinShow, ahk_id %nvHandler%
+		}
+	return
+}
+
+Close_Previous_Program_Instance() {
+/*
+ *			Prevents from running multiple instances of this program
+ *			Works by reading the last PID and process name from the .ini
+ *				, checking if there is an existing match
+ *				and closing if a match is found
+*/
+	global ProgramValues
+
+	iniFilePath := ProgramValues.Ini_File
+
+	IniRead, lastPID,% iniFilePath,PROGRAM,PID
+	IniRead, lastProcessName,% iniFilePath,PROGRAM,FileProcessName
+
+	translations := Get_Translations(A_ThisFunc)
+
+	Process, Exist, %lastPID%
+	existingPID := ErrorLevel
+	if ( existingPID = 0 )
+		Return ; No match found
+	else {
+		HiddenWindows := A_DetectHiddenWindows
+		DetectHiddenWindows, On ; Required to access the process name
+		WinGet, existingProcessName, ProcessName, ahk_pid %existingPID% ; Get process name from PID
+		DetectHiddenWindows, %HiddenWindows%
+		if ( existingProcessName = lastProcessName ) { ; Match found, close the previous instance
+			Process, Close, %existingPID%
+			Process, WaitClose, %existingPID%, 5
+			ClosePrevious_Error:
+			if (ErrorLevel) { ; Unable to close process due to lack of admin  
+				MsgBox, 4096, ProgramValues.Name,% translations.TEXT_UnableToClose
+				Process, Exist, %existingPID%
+				if (Exists)
+					GoSub ClosePrevious_Error
+			}
+		}
+	}
+}
+
+Get_Translations(_section) {
+	global ProgramValues, ProgramSettings
+
+	lang := (ProgramSettings.SETTINGS.Language)?(ProgramSettings.SETTINGS.Language):("EN")
+	translations := {}
+
+;	Using JSON
+	jsonFile := ProgramValues.Local_Folder "\Translations.json"
+	FileRead, jsonContent,% jsonFile
+	parsed_JSON := Json.Load(jsonContent)
+
+	translations[_section][lang] := parsed_JSON[_section][lang]
+	for key, element in parsed_JSON[_section]["EN"]{
+		this_translation := parsed_JSON[_section][lang][key]
+		if (!this_translation) {
+			this_translation := parsed_JSON[_section]["EN"][key] ; if inexistent, use EN instead
+		}
+		this_translation := StrReplace(this_translation, "``n", "`n")
+		this_translation := StrReplace(this_translation, "%programName%", ProgramValues.Name)
+
+		translations[key] := this_translation
+	}
+	return translations
+/*
+;	Using INI
+	IniRead, allSettings,% ProgramValues.Translations_File,% _section
+	Loop, Parse,% allSettings,% "`n`r"
+	{
+		keyAndValue := A_LoopField
+		if RegExMatch(keyAndValue, "(.*?)_(.*?)=""(.*)""", found) {
+			thisLang := found1, thisKey := found2, thisSetting := found3
+			thisSetting := StrReplace(thisSetting, "``n", "`n")
+
+			if (thisLang = lang) {
+				translations[thisKey] := thisSetting
+			}
+
+			found1 := "", found2 := "", found3 := ""
+			thisLang := "", thisKey := "", thisSetting := ""
+		}
+	}
+
+	for key
+
+	return translations
+*/
+}
+
+GUI_Select_Language() {
+/*		Lets the user choose whichever language suits the best
+*/
 	static
-	curControl := A_GuiControl
-	If ( curControl <> prevControl ) {
-		SetTimer, Display_ToolTip, -300 	; shorter wait, shows the tooltip quicker
-		prevControl := curControl
+	global ProgramSettings, ProgramValues
+	translations := Get_Translations("GUI_Select_Language")
+
+	Gui, SelectLang:Destroy
+	Gui, SelectLang:New, +AlwaysOnTop +SysMenu -MinimizeBox -MaximizeBox +OwnDialogs +LabelGUI_Select_Language_ +hwndGuiLangHandler,% ProgramValues.Name
+
+	Gui, SelectLang:Add, Text, x10 y10,% translations.TXT_ChooseLanguage
+	Gui, SelectLang:Add, DropDownList, x10 gGui_LangSelect_List_Event vlangListItem,% translations.DDL_AvailableLangs
+	Gui, SelectLang:Add, Button, x10 y+20 h30 gGui_LangSelect_Apply hwndhApplyBtn,% translations.BTN_Apply
+
+;	Select the previously selected lang
+	lang := (lang)?(lang):("EN") ; Sets default lang
+	Loop, Parse,% translations["DDL_AvailableLangs"],% "|"
+	{
+		RegExMatch(A_LoopField, "(.*)-", thisLangPat)
+		if (thisLangPat1 = lang) {
+			GuiControl, SelectLang:ChooseString,langListItem,% A_LoopField
+		}
 	}
+	
+	Gui, SelectLang:Show, AutoSize
+	WinWait, ahk_id %GuiLangHandler%
+	WinWaitClose, ahk_id %GuiLangHandler%
+	return
+
+	GUI_Select_Language_Size:
+		GuiControl, SelectLang:Move,% hApplyBtn,% "w" A_GuiWidth-15
+	Return
+	
+	Gui_LangSelect_List_Event:
+;		Update the GUI language
+		Gui, SelectLang:Submit, NoHide
+		Gui, SelectLang:+OwnDialogs
+
+;		Retrieve only the language tag
+		RegExMatch(langListItem, "(.*)-", lang)
+		StringTrimRight, lang, lang, 1
+
+;		Set the language setting and reload GUI
+		ProgramSettings.SETTINGS.Language := lang
+		GUI_Select_Language()
+		GuiControl, SelectLang:ChooseString,langListItem,% lang
 	return
 	
-	Display_ToolTip:
-		try
-			ToolTip, % %programLang%_%curControl%_TT
-		catch
-			ToolTip,
-		if ( curControl = "helpMe" )
-			SetTimer, Remove_ToolTip, -20000
-		else
-			SetTimer, Remove_ToolTip, -2000
+	Gui_LangSelect_Apply:
+		if (lang) {
+			IniWrite,% lang,% ProgramValues.Ini_File,SETTINGS,Language
+			Gui, SelectLang:Destroy
+		}
 	return
 	
-	Remove_ToolTip:
-		ToolTip
+	Gui_LangSelect_Close:
 	return
+	
+	Gui_LangSelect_Escape:
+	return
+}
+
+Set_Local_Settings() {
+/*		Set local settings, specific to the application
+*/
+	global ProgramValues
+	static iniFile
+
+	iniFile := ProgramValues.Ini_File
+
+;	Set the PID and filename, used for the auto updater
+	IniWrite,% ProgramValues.PID,% iniFile,PROGRAM,PID
+	IniWrite,% """" A_ScriptName """",% iniFile,PROGRAM,FileName
+
+	HiddenWindows := A_DetectHiddenWindows
+	DetectHiddenWindows On
+	WinGet, fileProcessName, ProcessName,% "ahk_pid " ProgramValues.PID
+	IniWrite,% """" fileProcessName """",% iniFile,PROGRAM,FileProcessName
+	DetectHiddenWindows, %HiddenWindows%
+
+;	Set current version, used for Update_Local_Settings()
+	IniWrite,% ProgramValues.Version,% iniFile,% "PROGRAM",% "Version"
+}
+
+Get_GameProfiles_Settings() {
+	global ProgramValues
+
+	IniRead, allSections,% ProgramValues.Ini_File
+	mySettings := {}
+	Loop, Parse, allSections,% "`n`r"
+	{
+		if RegExMatch(A_LoopField, ".exe") {
+			mySettings[A_LoopField] := {}
+			IniRead, gammaVal,% ProgramValues.Ini_File,% A_LoopField,Gamma
+			IniRead, vibranceVal,% ProgramValues.Ini_File,% A_LoopField,Vibrance
+
+			mySettings[A_LoopField]["Gamma"] := gammaVal
+			mySettings[A_LoopField]["Vibrance"] := vibranceVal
+
+		}
+	}
+
+	return mySettings
+}
+
+Declare_GameProfiles_Settings(settings) {
+	global GameProfiles, ProgramValues, GameList
+
+	GameList := ""
+
+	for _section, nothing in settings { ; For every section in the settings array
+
+		GameList .= "," _section
+
+		subArr := settings[_section] ; Declare the subArray for this section so we can access its keys
+		if !(GameProfiles[_section]) { ; Create the sub-array if non-existent
+			GameProfiles[_section] := {}
+		}
+
+		for iniKey, value in subArr { ; For every keys in the subArray
+			if (settings[_section][iniKey] != "ERROR") { ; As long as the value exists, add to the global GameProfiles array
+				GameProfiles[_section][iniKey] := value
+			}
+			else { ; This should never trigger as values are handled by another function. BUT YOU NEVER KNOW.... YOU NEVER KNOW
+				Msgbox,4096,% ProgramValues.Name, % "Unable to declare setting: " _section "." iniKey " with value: " value 
+													. "`nPlease report this issue."
+			}
+		}
+	}
+
+	StringTrimLeft, GameList, GameList, 1 ; Remove first comma
+}
+
+Get_Local_Settings() {
+/*		Retrieve the local settings
+ *		If setting does not exist, set its default value
+*/
+	global ProgramValues
+	static iniFile
+
+	iniFile 			:= ProgramValues.Ini_File
+	settings 			:= {}
+
+;	PROGRAM
+	IniRead, value,% iniFile,PROGRAM,Auto_Update
+	if ( value = "ERROR" ||value = "" ) {
+		IniWrite, 1,% iniFile,PROGRAM,Auto_Update
+	}
+
+;	SETTINGS
+	keys 		:= ["Language"]
+	defValues 	:= ["",0]
+	for id, iniKey in keys {
+		IniRead, value,% iniFile,SETTINGS,% iniKey
+		if ( value = "ERROR" || value = "" ) {
+			value := defValues[id]
+			IniWrite,% value,% iniFile,SETTINGS,% iniKey
+		}
+		if (iniKey = "Language" && value = "") {
+			GUI_Select_Language()
+		}
+		settings.SETTINGS[iniKey] := value
+	}
+
+;	NVIDIA_PANEL
+	keys 		:= ["Control_AdjustDesktop","Control_AdjustDesktopText","Location"]
+	for id, iniKey in keys {
+		IniRead, value,% iniFile,NVIDIA_PANEL,% iniKey
+		if ( value = "ERROR" || value = "") {
+			value := ""
+		}
+		settings.NVIDIA_PANEL[iniKey] := value
+	}
+
+;	DEFAULT
+	keys 		:= ["Gamma","Vibrance"]
+	for id, iniKey in keys {
+		IniRead, value,% iniFile,DEFAULT,% iniKey
+		if ( value = "ERROR" || value = "") {
+			value := (iniKey = "Gamma")?(100):(iniKey = "Vibrance")?(50):("")
+			IniWrite,% value,% iniFile,DEFAULT,% iniKey
+		}
+		settings.DEFAULT[iniKey] := value
+	}
+
+	return settings
+}
+
+Declare_Local_Settings(settings) {
+/*		Declare the settings to a global variable
+*/
+	global ProgramSettings, ProgramValues
+
+	for _section, nothing in settings { ; For every section in the settings array
+
+		subArr := settings[_section] ; Declare the subArray for this section so we can access its keys
+		if !(ProgramSettings[_section]) { ; Create the sub-array if non-existent
+			ProgramSettings[_section] := {}
+		}
+
+		for iniKey, value in subArr { ; For every keys in the subArray
+			if (settings[_section][iniKey] != "ERROR") { ; As long as the value exists, add to the global ProgramSettings array
+				ProgramSettings[_section][iniKey] := value
+			}
+			else { ; This should never trigger as values are handled by another function. BUT YOU NEVER KNOW.... YOU NEVER KNOW
+				Msgbox,4096,% ProgramValues.Name, % "Unable to declare setting: " _section "." iniKey " with value: " value 
+													. "`nPlease report this issue."
+			}
+		}
+	}
+}
+
+Tray_Refresh() {
+/*		Remove any dead icon from the tray menu
+ *		Should work both for W7 & W10
+ */
+	WM_MOUSEMOVE := 0x200
+	detectHiddenWin := A_DetectHiddenWindows
+	DetectHiddenWindows, On
+
+	allTitles := ["ahk_class Shell_TrayWnd"
+			, "ahk_class NotifyIconOverflowWindow"]
+	allControls := ["ToolbarWindow321"
+				,"ToolbarWindow322"
+				,"ToolbarWindow323"
+				,"ToolbarWindow324"]
+	allIconSizes := [24,32]
+
+	for id, title in allTitles {
+		for id, controlName in allControls
+		{
+			for id, iconSize in allIconSizes
+			{
+				ControlGetPos, xTray,yTray,wdTray,htTray,% controlName,% title
+				y := htTray - 10
+				While (y > 0)
+				{
+					x := wdTray - iconSize/2
+					While (x > 0)
+					{
+						point := (y << 16) + x
+						PostMessage,% WM_MOUSEMOVE, 0,% point,% controlName,% title
+						x -= iconSize/2
+					}
+					y -= iconSize/2
+				}
+			}
+		}
+	}
+
+	DetectHiddenWindows, %detectHiddenWin%
+}
+
+GetMonitorIndexFromWindow(windowHandle="") {
+/*		Credits: shinywong
+ *		autohotkey.com/board/topic/69464-how-to-determine-a-window-is-in-which-monitor/?p=440355
+ *
+ *		Retrieve the monitor ID, based on window position.
+ *		Index starts at 1
+*/
+	if (!windowHandle) {
+		windowHandle := WinActive("A")
+	}
+	monitorIndex := 1
+
+	VarSetCapacity(monitorInfo, 40)
+	NumPut(40, monitorInfo)
+	
+	if (monitorHandle := DllCall("MonitorFromWindow", "uint", windowHandle, "uint", 0x2)) 
+		&& DllCall("GetMonitorInfo", "uint", monitorHandle, "uint", &monitorInfo) 
+	{
+		monitorLeft   := NumGet(monitorInfo,  4, "Int")
+		monitorTop    := NumGet(monitorInfo,  8, "Int")
+		monitorRight  := NumGet(monitorInfo, 12, "Int")
+		monitorBottom := NumGet(monitorInfo, 16, "Int")
+		workLeft      := NumGet(monitorInfo, 20, "Int")
+		workTop       := NumGet(monitorInfo, 24, "Int")
+		workRight     := NumGet(monitorInfo, 28, "Int")
+		workBottom    := NumGet(monitorInfo, 32, "Int")
+		isPrimary     := NumGet(monitorInfo, 36, "Int") & 1
+
+		SysGet, monitorCount, MonitorCount
+
+		Loop, %monitorCount%
+		{
+			SysGet, tempMon, Monitor, %A_Index%
+
+			; Compare location to determine the monitor index.
+			if ((monitorLeft = tempMonLeft) and (monitorTop = tempMonTop)
+				and (monitorRight = tempMonRight) and (monitorBottom = tempMonBottom))
+			{
+				monitorIndex := A_Index
+				break
+			}
+		}
+	}
+	
+	return %monitorIndex%
 }
 
 Reload_Func() {
-	sleep 10
+	global NVIDIA_Values
+
+	Process, Close,% NVIDIA_Values.Panel_PID
+	Sleep 10
 	Reload
 	Sleep 10000
 }
 
 Exit_Func(ExitReason, ExitCode) {
-	if ( ExitReason = "LogOff" ) || ( ExitReason = "ShutDown" ) || ( ExitReason = "Reload" ) || ( ExitReason = "Single" ) {
-		Process, Close, nvcplui.exe
-	}
-	else {
-		transArray := Get_Translation("Program_Exit", programLang)
-        MsgBox, 4, % programName,% transArray[1]
-        IfMsgBox, No
-            return 1  ; OnExit functions must return non-zero to prevent exit.
-		Process, Close, nvcplui.exe
-    }
-}
+	global NVIDIA_Values
 
-;==================================================================================================================
-;
-;																														TRAY MENU
-;
-;			Allows the user to open the settings/about menus.
-;
-;==================================================================================================================
-
-Create_Tray_Menu(lang) {	
-;			Create the tray menu n stuff
-	handler := nvHandler
-	transArray := Get_Translation("Tray_Menu", lang)
-	Menu, Tray, DeleteAll
-	Menu, Tray, Tip,% programName
-	Menu, Tray, NoStandard
-	Menu, Tray, Add,% transArray[1], Gui_Settings
-	Menu, Tray, Add,% transArray[2], Gui_About
-	Menu, Tray, Add, 
-	Menu, Tray, Add,% transArray[3], Tray_Hide
-	Menu, Tray, Check,% transArray[3]
-	Menu, Tray, Add
-	Menu, Tray, Add,% transArray[4], Tray_Reload
-	Menu, Tray, Add,% transArray[5], Tray_Exit
-	return
-
-	Tray_Hide: 
-		EN_Hide := "NVCPL Hidden", FR_Hide := "NVCPL Caché"
-		if WinExist("ahk_exe nvcplui.exe") {
-			if ( programLang = "EN" )
-				Menu, Tray, Check,%EN_Hide%
-			else if ( programLang = "FR" )
-				Menu, Tray, Check,%FR_Hide%
-			WinHide ahk_id %nvHandler%
-		}
-		else {
-			if ( programLang = "EN" )
-				Menu, Tray, UnCheck,%EN_Hide%
-			else if ( programLang = "FR" )
-				Menu, Tray, UnCheck,%FR_Hide%
-			WinShow, ahk_id %nvHandler%
-		}
-	return
-	
-	Tray_Reload:
-		Reload_Func()
-	return
-	
-	Tray_Exit:
-		ExitApp
-	return
-}
-
-;==================================================================================================================
-;
-;																														UPDATE MENU
-;
-;			Notify the user upon finding a new update
-;			Automatically download and run the new version if clicking Yes
-;			Automatically download and run the new version if autoUpdate is enabled
-;
-;==================================================================================================================
-
-Check_Update(auto) {
-;			It works by downloading both the new version and the auto-updater
-;			then closing the current instancie and renaming the new version
-	static
-	updaterPath := "gvUpdater.exe"
-	beta := 0
-	
-	if ( beta ) {
-		updaterDL := "https://raw.githubusercontent.com/lemasato/Beta-Stuff/master/Game-Vivifier/Updater.exe"
-		versionDL := "https://raw.githubusercontent.com/lemasato/Beta-Stuff/master/Game-Vivifier/version.txt"
-	}
-	else {
-		updaterDL := "https://raw.githubusercontent.com/lemasato/Game-Vivifier/master/Updater.exe"
-		versionDL := "https://raw.githubusercontent.com/lemasato/Game-Vivifier/master/version.txt"
-	}
-	
-;	Delete files remaining from updating
-	if (FileExist(updaterPath))
-		FileDelete,% updaterPath
-	if (FileExist("Game Vivifier Updater.exe"))	; pre-2.0.6 updater name
-		FileDelete,% "Game Vivifier Updater.exe"
-	if (FileExist("gvNewver.exe"))
-		FileDelete,% "gvNewver.exe"
-	
-;	Retrieve the version number
-	ComObjError(0)
-	whr := ComObjCreate("WinHttp.WinHttpRequest.5.1")
-	whr.Open("GET", versionDL, true)
-	whr.Send()
-	; Using 'true' above and the call below allows the script to remain responsive.
-	whr.WaitForResponse(10) ; 10 seconds
-	if ( whr.ResponseText <> "" ) && ( whr.ResponseText <> "NotFound" ) {
-		newVersion := whr.ResponseText
-		StringReplace, newVersion, newVersion, `n,,1 ; remove the 2nd line
-	}
-	else newVersion := programVersion ; couldn't reach the file, cancel update
-	if ( programVersion <> newVersion )
-		Gui_Update(auto, newVersion, updaterPath, updaterDL)
-}
-
-Gui_Update(auto, newVersion, updaterPath, updaterDL) {
-	static
-	if ( auto = 1 ) {
-		GoSub Gui_Update_Accept
-		return
-	}
-	Gui, Update:Destroy
-	Gui, Update:New, +AlwaysOnTop +SysMenu -MinimizeBox -MaximizeBox +OwnDialogs +HwndUpdateGuiHwnd,% "Update! v" newVersion
-	Gui, Update:Default
-	Gui, Add, Text, x70 y10 hwndhandler1 w220,Would you like to update now?
-	Gui, Add, Text, x10 y30 hwndhandler2 w280,The process is automatic, only your permission is required.
-	Gui, Add, Button, x10 y55 w135 h35 gGui_Update_Accept hwndhandler3,Accept
-	Gui, Add, Button, x145 y55 w135 h35 gGui_Update_Refuse hwndhandler4,Refuse
-	Gui, Add, Button, x10 y95 w270 h40 gGui_Update_Open_Page hwndhandler5,Open the download page ; Open download page
-	Gui, Add, CheckBox, x10 y150 w260 h30 vautoUpdate hwndhandler6,Update automatically from now ; Update automatically...
-	
-	handlersArray := []
-	Loop  {
-		item := handler%A_Index%
-		if ( item <> "" )
-			handlersArray.InsertAt(A_Index, item)
-		else break
-	}
-	transArray := Get_Translation("Gui_Update", programLang)
-	Set_Translation("Gui_Update", programLang, handlersArray, transArray)
-	Gui, Show, AutoSize
-	WinWait, ahk_id %UpdateGuiHwnd%
-	WinWaitClose, ahk_id %UpdateGuiHwnd%
-	return
-	
-	Gui_Update_Accept:
-;		Downlaod the updater that will handle the updating process
-		Gui, Submit
-		if ( autoUpdate )
-			IniWrite, 1,% iniFilePath,SETTINGS,AutoUpdate
-		IniWrite,% A_ScriptName,% iniFilePath,SETTINGS,FileName
-		UrlDownloadToFile,% updaterDL,% updaterPath
-		sleep 1000
-		Run, % updaterPath
-		Process, close, %programPID%
-		OnExit("Exit_Func", 0)
-		ExitApp
-	return
-	
-	Gui_Update_Refuse:
-		Gui, Submit
-		if ( autoUpdate )
-			IniWrite, 1,% iniFilePath,SETTINGS,AutoUpdate
-	return
-
-	Gui_Update_Open_Page:
-		Gui, Submit
-		Run, % "https://autohotkey.com/boards/viewtopic.php?t=9455"
-	return
-}
-
-;==================================================================================================================
-;
-;																														LANG SELECT MENU
-;
-;			Appears when the user hasn't set any language yet.
-;			Returns the selected language.
-;
-;==================================================================================================================
-
-Gui_LangSelect() {
-	static
-	if !(lang)
-		lang := "EN"
-	Gui, Lang:Destroy
-	Gui, Lang:New, +AlwaysOnTop +SysMenu -MinimizeBox -MaximizeBox +OwnDialogs +LabelGui_LangSelect +hwndGuiLangHandler,% programName
-	Gui, Lang:Default
-	Gui, Add, Text, x10 y10 w140 hwndhandler1 ; Select a language:
-	Gui, Add, Text, x10 y35 w300 hwndhandler2 ; Can be changed anytime from the [Settings] menu.
-	Gui, Add, DropDownList, x165 y7 gGui_LangSelect_List_Event vlangListItem hwndhandler3 ; EN-FR
-	GuiControl, Lang:Choose,%hwndhandler3%, 1
-	Gui, Add, Button, x10 y70 w310 h30 gGui_LangSelect_Apply hwndhandler4 ; Apply
-	
-	handlersArray := []
-	Loop  {
-		item := handler%A_Index%
-		if ( item <> "" )
-			handlersArray.InsertAt(A_Index, item)
-		else break
-	}
-	transArray := Get_Translation("Gui_Lang", lang)
-	Set_Translation("Gui_Lang", lang, handlersArray, transArray)
-	
-	Gui, Show, AutoSize
-	WinWait, ahk_id %GuiLangHandler%
-	WinWaitClose, ahk_id %GuiLangHandler%
-	return lang
-	
-	Gui_LangSelect_List_Event:
-;		Instantly update the text language upon changing
-		Gui, Submit, NoHide
-		RegExMatch(langListItem, "(.*)-", lang)
-		StringTrimRight, lang, lang, 1
-		transArray := Get_Translation("Gui_Lang", lang)
-		Set_Translation("Gui_Lang", lang, handlersArray, transArray)
-	return
-	
-	Gui_LangSelect_Apply:
-		Gui, Lang:Destroy
-	return
-	
-	Gui_LangSelect_Close:
-		Reload_Func()
-	return
-	
-	Gui_LangSelect_Escape:
-		Reload_Func()
-	return
-}
-
-;==================================================================================================================
-;
-;																															GET CONTROL MENU
-;
-;			Appears when the control couldn't be automatically found
-;			Ask the user to click on said control and returns it
-;
-;==================================================================================================================
-
-Gui_Get_Control(ctrlName) {
-;			Ask the user to click on a specific button so we can retrieve its control ID
-	static
-	global ctrlRetrieved, ctrlRetrievedText
-	lang := programLang, handler := nvHandler
-	
-	Gui, GetControl:Destroy
-	Gui, GetControl:New, +AlwaysOnTop +SysMenu -MinimizeBox -MaximizeBox +OwnDialogs +LabelGui_GetControl_ +hwndGuiNFRHwnd,% programName " - WARNING"
-	Gui, GetControl:Default
-	Gui, Add, text, x10 y10 h30 w350 hwndhandler1 ; Couldn't retrieve...
-	Gui, Add, text, x10 y40 h30 w350 hwndhandler2 ; This error usually happens when...
-	Gui, Add, text, x10 y60 h30 w350 hwndhandler3 ; Please, wait for the NVCPL...
-	Gui, Add, text, x10 y90 w350 hwndhandler4 cBlue gGui_GetControl_Screenshot xs ; Click for screenshot...
-	Gui, Add, text, x30 y130 w100 hwndhandler5 ; Ctrl retrieved:
-	Gui, Add, Edit, x150 y127 w60 vctrlRetrieved WantReturn ReadOnly
-	Gui, Add, text, x30 y160 w100 hwndhandler6 ; Ctrl expected:
-	Gui, Add, Edit, x150 y157 w60 ReadOnly, Static2
-	Gui, Add, text, x10 y190 w380 h30 cBlue gGui_About_Thread hwndhandler7 ; If you wish to help.... post on thread
-	Gui, Add, Edit, x10 y225 w365 vctrlRetrievedText ReadOnly
-	Gui, Add, Button, x240 y126 w120 h53 gGui_GetControl_Ok hwndhandler8 ; VALIDATE
-	
-	handlersArray := []
-	Loop  {
-		item := handler%A_Index%
-		if ( item <> "" )
-			handlersArray.InsertAt(A_Index, item)
-		else break
-	}	
-	GoSub Gui_Settings_Refresh_Both_Lists
-	Gui, Show, AutoSize
-	transArray := Get_Translation("Gui_Get_Control", programLang, ctrlName)
-	Set_Translation("Gui_Get_Control", programLang, handlersArray, transArray)
-	Gui, Show, AutoSize
-	WinShow, ahk_id %handler%
-	WinRestore, ahk_id %handler%
-	SetTimer, Gui_GetControl_Refresh, 100
-	WinWait, ahk_id %GuiNFRHwnd%
-	WinWaitClose, ahk_id %GuiNFRHwnd%
-	WinHide, ahk_id %handler%
-	return [ctrlRetrieved, ctrlRetrievedText]
-	
-	Gui_GetControl_Close:
-		Reload_Func()
-	return
-	
-	Gui_GetControl_Escape:
-		Reload_Func()
-	return
-
-	Gui_GetControl_Screenshot:
-		Run, % "https://raw.githubusercontent.com/lemasato/Game-Vivifier/master/Screenshots/Nvidia Control Panel.png"
-	return
-	
-	Gui_GetControl_Ok:
-		Gui, Submit, NoHide
-		GuiControlGet, ctrlRetrieved
-		if ctrlRetrieved contains Static
-		{
-			SetTimer, Gui_GetControl_Refresh, Off
-			Gui, Submit
-		}
-	return
-	
-	Gui_GetControl_Refresh:
-		MouseGetPos, , , winHandler
-		WinGet, winEXE, ProcessName, ahk_id %winHandler%
-		if ( winEXE = "nvcplui.exe" )
-		{
-			KeyWait, LButton, D
-			MouseGetPos, , , , ctrlName
-			ControlGetText, ctrlText,% ctrlName, ahk_id %winHandler%
-			if ctrlName contains Static
-			{
-				GuiControl, GetControl:, ctrlRetrieved,% ctrlName
-				GuiControl, GetControl:, ctrlRetrievedText,% ctrlText
-			}
-		}
-	return 
-}
-
-;==================================================================================================================
-;
-;																															ABOUT MENU
-;
-;			Appears when clicking the "About" tray option.
-;
-;==================================================================================================================
-
-Gui_About() {
-	static	
-	Gui, About:Destroy
-	Gui, About:New, +HwndaboutGuiHandler +AlwaysOnTop +SysMenu -MinimizeBox -MaximizeBox +OwnDialogs,% programName " by masato - " programVersion
-	Gui, About:Default
-	Gui, Add, Text, x10 y10 w250 hwndhandler1 ; Hello, thank you for...
-	Gui, Add, Text, x10 y35 w430 h50 hwndhandler2 ; It allows NVIDIA GPU owners to...
-	Gui, Add, Text, x10 y75 w430 h50 hwndhandler3 ; If you would like to get started, ...
-	Gui, Add, Link, x10 y130 w250 hwndhandler4
-	Gui, Add, Link, x10 y145 w250 hwndhandler5
-	;~ Gui, Add, Text, x10 y130 w250 cBlue gGui_About_Thread hwndhandler4 ; Click to visit...
-	if !( FileExist( A_Temp "\gvpaypaldonatebutton.png" ) ) {
-		UrlDownloadToFile, % "https://www.paypalobjects.com/en_US/i/btn/btn_donate_SM.gif", % A_Temp "\gvpaypaldonatebutton.png"
-		if ( ErrorLevel )
-			Gui, Add, Button, x350 y128 gGui_About_Donate hwnddonateHandler,Donations
-	}
-	Gui, Add, Picture, x350 y125 gGui_About_Donate hwnddonateHandler,% A_Temp "\gvpaypaldonatebutton.png"
-	
-	handlersArray := []
-	Loop  {
-		item := handler%A_Index%
-		if ( item <> "" )
-			handlersArray.InsertAt(A_Index, item)
-		else break
-	}	
-	transArray := Get_Translation("Gui_About", programLang)
-	Set_Translation("Gui_About", programLang, handlersArray, transArray)
-	Gui, Show, AutoSize
-	WinWait, ahk_id %aboutGuiHandler%
-	WinWaitClose, ahk_id %aboutGuiHandler%
-	return
-
-	Gui_About_Donate:
-		Run, % "https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=E9W692RF9ZLYA"
-	return
-}
-
-;==================================================================================================================
-;
-;																															SETTINGS MENU
-;
-;			Appears when clicking on the "Settings" tray option.
-;			Allows the user to set their custom profiles.
-;
-;==================================================================================================================
-
-Gui_Settings:
-	FR_helpMe_TT := "ID Écran: Changer cette value si les préférences ne sont pas appliquées sur le bon écran.`n`n"
-		. "Liste de gauche" A_Tab . A_Tab "Programmes en cours.`n"
-		. "Liste de droite" A_Tab . A_Tab "Programmes ajoutés à vos favoris.`n`n"
-		. "Actualiser" A_Tab . A_Tab "Rafraîchit la liste des programmes en cours`n"
-		. "->" A_Tab . A_Tab . A_Tab  "Ajoute le programme selectionné à vos favoris.`n"
-		. "<-" A_Tab . A_Tab . A_Tab  "Supprime le favori selectionné.`n`n"
-		. "Une fois qu'un programme a été ajouté à vos favoris,`n"
-		. "sélectionnez-le et ajustez les curseurs à vos envies.`n"
-		. "Les préférences sont sauvegardées instantanément."
-		
-	EN_helpMe_TT := "Monitor ID: Change this value if the preferences are not being set to the rigt monitor.`n`n"
-		. "Left list" A_Tab . A_Tab "Currently running programs.`n"
-		. "Right list" A_Tab A_Tab "Programs added to your favourites.`n`n"
-		. "Refresh" A_Tab . A_Tab "Refresh the currently running programs list.`n"
-		. "->" A_Tab . A_Tab "Add selected program to your favourites.`n"
-		. "<-" A_Tab . A_Tab "Remove selected favourite from the list.`n`n"
-		. "Once a program was added to your favourite,`n"
-		. "select it and adjust the sliders to your will.`n"
-		. "Preferences are instantly saved."
-	;		Top Settings	
-	Gui, Settings:Destroy
-	Gui, Settings:New, +AlwaysOnTop +SysMenu -MinimizeBox -MaximizeBox +OwnDialogs +LabelGui_Settings_ hwndSettingsHandler,% programName " Settings"
-	Gui, Settings:Default
-	Gui, Add, CheckBox, x10 y10 w200 vrunOnStartup gGui_Settings_Apply hwndhandler1 ; Run On Startup box
-	IniRead, runOnStartup,% iniFilePath,SETTINGS,RunOnStartup
-	if ( runOnStartup )
-		GuiControl, Settings:,runOnStartup,1
-	Gui, Add, Text, x10 y35 w50 hwndhandler2 ; Language:
-	Gui, Add, DropDownList, x70 y30 vlangListItem gGui_Settings_Langs_List_Event hwndhandler3 ; EN-FR
-	;		Monitor ID
-	IniRead, monID,% iniFilePath,SETTINGS,Monitor_ID
-	Gui, Add, Text, x340 y30 w55 hwndhandler11,
-	Gui, Add, Edit, xp+60 yp-3 w45 vMonitorID gGui_Settings_Apply,% monID
-	Gui, Add, UpDown, Range0-100,% monID
-	;		Left and Right boxes
-	Gui, Add, ListBox, x10 y60 w250 h300 vleftListItem Sort
-	Gui, Add, ListBox, x340 y60 w250 h300 vrightListItem gGui_Settings_Right_List_Event Sort
-	;		Middle Buttons
-	Gui, Add, Button, x260 y59 w80 h40 gGui_Settings_Detect_Hidden vdetectHidden hwndhandler4 ; Hidden Windows
-	Gui, Add, Button, x260 y155 w80 h30 gGui_Settings_Right_Arrow,->
-	Gui, Add, Button, x260 y185 w80 h40 gGui_Settings_Refresh_Both_Lists hwndhandler5 ; Refresh
-	Gui, Add, Button, x260 y225 w80 h30 gGui_Settings_Left_Arrow,<-
-	Gui, Add, Button, x260 y311 w80 h40 vhelpMe hwndhandler6 ; Help?
-	;		Gamma Slider
-	IniRead,gammaDefault,% iniFilePath,DEFAULT,Gamma
-	Gui, Add, Text, x103 y359 w50 hwndhandler7 ; Gamma
-	Gui, Add, Slider, x145 y355 w210 Range30-280 vgammaValue gGui_Settings_Slider_Event Line5 Page5 NoTicks AltSubmit, %gammaDefault%
-	Gui, Add, Edit, x355 y355 w45 gGui_Settings_Slider_Event vgammaEdit, %gammaDefault%
-	Gui, Add, UpDown, gGui_Settings_Slider_Event Range30-280, %gammaDefault%
-	Gui, Add, Text, x410 y359 w35 hwndhandler8 ; Default
-	Gui, Add, Edit, x453 y355 w45 vgammaDefault gGui_Settings_Slider_Event, %gammaDefault%
-	Gui, Add, UpDown, Range-30-280 gGui_Settings_Slider_Event, %gammaDefault%
-	;		Vibrance Slider
-	IniRead,vibranceDefault,% iniFilePath,DEFAULT,Vibrance
-	Gui, Add, Text, x103 y384 w50 hwndhandler9 ; Vibrance
-	Gui, Add, Slider, x145 y380 w210 Range0-100 vvibranceValue gGui_Settings_Slider_Event Line5 Page5 NoTicks AltSubmit, %vibranceDefault%
-	Gui, Add, Edit, x355 y380 w45 gGui_Settings_Slider_Event vvibranceEdit, %vibranceDefault%
-	Gui, Add, UpDown, gGui_Settings_Slider_Event Range0-100, %vibranceDefault%
-	Gui, Add, Text, x410 y384 w35 hwndhandler10 ; Default
-	Gui, Add, Edit, x453 y380 w45 vvibranceDefault gGui_Settings_Slider_Event, %vibranceDefault%
-	Gui, Add, UpDown, Range-0-100 gGui_Settings_Slider_Event, %vibranceDefault%
-
-	handlersArray := []
-	Loop  {
-		item := handler%A_Index%
-		if ( item <> "" )
-			handlersArray.InsertAt(A_Index, item)
-		else break
-	}	
-	GoSub Gui_Settings_Refresh_Both_Lists
-	Gui, Show, AutoSize
-	transArray := Get_Translation("Gui_Settings", programLang)
-	Set_Translation("Gui_Settings", programLang, handlersArray, transArray)
-	OnMessage(0x200,"WM_MOUSEMOVE", 1)
-	guiSettingsCreated := 1
-return
-
-
-Gui_Settings_Langs_List_Event:
-;			Triggers upon selecting another language
-;			Redraws the menu with selected language aswell as the tray menu
-		Gui, Submit, NoHide
-		RegExMatch(langListItem, "(.*)-", lang)
-		StringTrimRight, lang, lang, 1
-		transArray := Get_Translation("Gui_Settings", lang)
-		Set_Translation("Gui_Settings", lang, handlersArray, transArray)
-		IniWrite,% lang,% iniFilePath,SETTINGS,Language
-		programLang := lang
-return
-
-Gui_Settings_Right_List_Event:
-;			Triggers upon selecting an item from the right list
-;			Applies the correct values to the slider/editbox depending on the process
-	Gui, Submit, NoHide
-	IniRead, gammaValue,% iniFilePath,% rightListItem,Gamma
-	IniRead, vibranceValue,% iniFilePath,% rightListItem,Vibrance
-	IniRead, gammaDefault,% iniFilePath,DEFAULT,Gamma
-	IniRead, vibranceDefault,% iniFilePath,DEFAULT,Vibrance
-	if ( gammaValue = "ERROR" )
-		gammaValue := gammaDefault
-	if ( vibranceValue = "ERROR" )
-		vibranceValue := vibranceDefault
-	GuiControl, Settings:,gammaValue,% gammaValue
-	GuiControl, Settings:,gammaEdit,% gammaValue
-	GuiControl, Settings:,vibranceValue,% vibranceValue
-	GuiControl, Settings:,vibranceEdit,% vibranceValue
-	rightListExe := rightListItem
-return
-
-
-Gui_Settings_Slider_Event:
-;			Make sure the slider and the editbox match the same value
-	Gui, Submit, NoHide
-	if ( rightListExe && guiSettingsCreated )
-		GoSub Gui_Settings_Apply
-;~ msgbox,% gammaValue "`n" vibranceValue "`n" winExe
-return
-
-
-Gui_Settings_Detect_Hidden:
-;			Warning that opens upon ticking the box
-	detectHidden := !detectHidden
-	GoSub Gui_Settings_Refresh_Both_Lists
-return
-
-
-Gui_Settings_Right_Arrow:
-;			Add the item to the right list
-;			Write the process info to the ini file, apply the default value
-	Gui, Submit, NoHide
-	if ( leftListItem = "" )
-		return
-
-	winArray := StrSplit(leftListItem, " // ")
-	winExe := winArray[1]
-	IniRead, allSections,% iniFilePath
-	if allSections not contains %winExe%
+	if ExitReason not in Reload
 	{
-		IniWrite,% gammaDefault,% iniFilePath,% winExe,Gamma
-		IniWrite,% vibranceDefault,% iniFilePath,% winExe,Vibrance
+		Process, Close,% NVIDIA_Values.Panel_PID
+		ExitApp
 	}
-	GoSub Gui_Settings_Refresh_Both_Lists
-return
-
-
-Gui_Settings_Left_Arrow:
-;			Remove the item from the right list
-;			Delete its entry name
-	Gui, Submit, NoHide
-	if ( rightListItem = "" )
-		return
-	IniDelete,% iniFilePath,% rightListItem
-	GoSub Gui_Settings_Refresh_Both_Lists
-return
-
-
-Gui_Settings_Refresh_Both_Lists:
-;			Refresh both lists
-;			If the box was ticked, detect hidden windows too 
-	Gui, Submit, NoHide
-	if ( detectHidden )
-		DetectHiddenWindows, On
-	GoSub Gui_Settings_Refresh_Left_List
-	GoSub Gui_Settings_Refresh_Right_List
-	GoSub Gui_Settings_Right_List_Event
-return
-
-
-Gui_Settings_Refresh_Left_List:
-;			Refresh the content from the left list
-;			Retrieve all the current windows and put them into a list, sorted alphabetically
-	WinGet, allWindows, List
-	wList := "" ; Make sure to empty the list
-	Loop, %allWindows% 
-	{ 
-		WinGetTitle, wTitle, % "ahk_id " allWindows%A_Index%
-		WinGet, wExe, ProcessName, %wTitle%
-		if wTitle contains |
-			StringReplace wTitle, wTitle,|,I,1
-		if ( wExe <> "explorer.exe" && wExe <> "autohotkey.exe" && wExe <> "nvcplui.exe" && wExe <> A_ScriptName && wExe <> "" ) ; Ignore these programs
-			if wList not contains % wExe " // " wTitle "|"	; avoid duplicate
-				wList .= wExe " // " wTitle "|"
-	} 
-	StringReplace, wList, wList,|,`n,1	; Replace list separators by a linefeed
-	Sort, wList	; Sort the list alphabetically
-	StringReplace, wList, wList,`n,|,1	; Put the list back in place
-	GuiControl, Settings:,leftListItem,|%wList%
-return
-
-
-Gui_Settings_Refresh_Right_List:
-;			Refresh the content of the right list
-;			Retrieve all the sections from the ini file and put them into a list, sorted alphabetically
-	rightListContent := "|"	; make sure to clear the content from the list
-	IniRead, allSections,% iniFilePath	; retrieve all sections
-	allSectionsArray := StrSplit(allSections, "`n")	; transform the linefeed into array
-	for index, element in allSectionsArray ; for every section name
-	{
-		if ( element <> "GENERAL" && element <> "DEFAULT" && element <> "SETTINGS" ) { ; if the section is not part of those
-			rightListContent .= element "|" ; add it in the list as a simple process
-		}
-	}
-	StringReplace, rightListContent, rightListContent,|,`n,1	; Replace list separators by a linefeed
-	Sort, rightListContent	; Sort the list alphabetically
-	StringReplace, rightListContent, rightListContent,`n,|,1	; Put the list back in place
-	GuiControl, Settings:,rightListItem,% rightListContent
-return
-
-
-Gui_Settings_Apply:
-;			Create shortcut ir runOnStartup is ticked
-;			Also perform numerous check before writting to the .ini
-	Gui, Submit, NoHide
-	if ( A_GuiControl = "gammaValue" ) {	; User moved the slider, adjust the edit
-		gammaEdit := gammaValue
-		GuiControl, Settings:,gammaEdit,%gammaEdit%
-	}
-	if ( A_GuiControl = "gammaEdit" ) {	; User moved the edit, adjust the slider
-		gammaValue := gammaEdit
-		GuiControl, Settings:,gammaValue,%gammaEdit%
-	}
-	if ( A_GuiControl = "vibranceValue" ) {
-		vibranceEdit := vibranceValue
-		GuiControl, Settings:,vibranceEdit,%vibranceValue%
-	}
-	if ( A_GuiControl = "vibranceEdit" ) {
-		vibranceValue := vibranceEdit
-		GuiControl, Settings:,vibranceValue,%vibranceEdit%
-	}
-	if ( rightListExe = "" ) {		; No item selected, gray out the controls
-		GuiControl,Disable,gammaValue
-		GuiControl,Disable,gammaEdit
-		GuiControl,Disable,vibranceValue
-		GuiControl,Disable,vibranceEdit
-	}
-	if ( rightListExe <> "" ) {	; item selected, enable controls and update the values from ini
-		GuiControl,Enable,gammaValue
-		GuiControl,Enable,gammaEdit
-		GuiControl,Enable,vibranceValue
-		GuiControl,Enable,vibranceEdit
-		gammaValue := ( gammaValue > 280 ) ? ( 280 ) : ( gammaValue < 30 ) ? ( 30 ) : ( gammaValue )	; Prevent from setting outside min/max boundaries
-		vibranceValue := ( vibranceValue > 100 ) ? ( 100 ) : ( vibranceValue < 0 ) ? ( 0 ) : ( vibranceValue )
-		IniWrite,% gammaValue,% iniFilePath,% rightListExe,Gamma
-		IniWrite,% vibranceValue,% iniFilePath,% rightListExe,Vibrance
-	}
-	if ( gammaDefault <> "" && gammaDefault <> "ERROR" ) {	; make sure the value is within boundaries
-		gammaDefault := ( gammaDefault > 280 ) ? ( 280 ) : ( gammaDefault < 30 ) ? ( 30 ) : ( gammaDefault )	; Prevent from setting outside min/max boundaries
-		IniWrite, % gammaDefault, % iniFilePath,DEFAULT,Gamma
-	}
-	if ( vibranceDefault <> "" && vibranceDefault <> "ERROR" ) {
-		vibranceDefault := ( vibranceDefault > 100 ) ? ( 100 ) : ( vibranceDefault < 0 ) ? ( 0 ) : ( vibranceDefault )
-		IniWrite, % vibranceDefault, % iniFilePath,DEFAULT,Vibrance
-	}
-	IniWrite, % runOnStartup, % iniFilePath,SETTINGS,RunOnStartup	
-	IniWrite, % monitorID, % iniFilePath,SETTINGS,Monitor_ID	
-	Update_Startup_Shortcut()
-return
-
-
-Gui_Settings_Close:
-Gui, Settings:Destroy
-guiSettingsCreated := 0
-OnMessage(0x200,"WM_MOUSEMOVE", 0)
-ToolTip,
-return
-
-
-Gui_Settings_Escape:
-Gui, Settings:Destroy
-guiSettingsCreated := 0
-OnMessage(0x200,"WM_MOUSEMOVE", 0)
-ToolTip,
-return
-
-;==================================================================================================================
-;
-;																															NvAPI Class by jNizM
-;
-;			Thread https://autohotkey.com/boards/viewtopic.php?f=6&t=5508
-;			GitHub: https://github.com/jNizM/AHK_NVIDIA_NvAPI
-;
-;==================================================================================================================
-
-class NvAPI
-{
-    static DllFile := (A_PtrSize = 8) ? "nvapi64.dll" : "nvapi.dll"
-    static hmod
-    static init := NvAPI.ClassInit()
-    static DELFunc := OnExit(ObjBindMethod(NvAPI, "_Delete"))
-
-    static NVAPI_GENERIC_STRING_MAX   := 4096
-    static NVAPI_MAX_LOGICAL_GPUS     :=   64
-    static NVAPI_MAX_PHYSICAL_GPUS    :=   64
-    static NVAPI_MAX_VIO_DEVICES      :=    8
-    static NVAPI_SHORT_STRING_MAX     :=   64
-
-    static ErrorMessage := False
-
-    ClassInit()
-    {
-        if !(NvAPI.hmod := DllCall("LoadLibrary", "Str", NvAPI.DllFile, "UPtr"))
-        {
-            MsgBox, 16, % A_ThisFunc, % "LoadLibrary Error: " A_LastEror
-            ExitApp
-        }
-        if (NvStatus := DllCall(DllCall(NvAPI.DllFile "\nvapi_QueryInterface", "UInt", 0x0150E828, "CDECL UPtr"), "CDECL") != 0)
-        {
-            MsgBox, 16, % A_ThisFunc, % "NvAPI_Initialize Error: " NvStatus
-            ExitApp
-        }
-    }
-	
-; ###############################################################################################################################
-
-    EnumNvidiaDisplayHandle(thisEnum := 0)
-    {
-        static EnumNvidiaDisplayHandle := DllCall(NvAPI.DllFile "\nvapi_QueryInterface", "UInt", 0x9ABDD40D, "CDECL UPtr")
-        if !(NvStatus := DllCall(EnumNvidiaDisplayHandle, "UInt", thisEnum, "UInt*", pNvDispHandle, "CDECL"))
-            return pNvDispHandle
-        return "*" NvStatus
-    }
-
-; ###############################################################################################################################
-
-    GetAssociatedNvidiaDisplayHandle(thisEnum := 0)
-    {
-        static GetAssociatedNvidiaDisplayHandle := DllCall(NvAPI.DllFile "\nvapi_QueryInterface", "UInt", 0x35C29134, "CDECL UPtr")
-        szDisplayName := NvAPI.GetAssociatedNvidiaDisplayName(thisEnum)
-        if !(NvStatus := DllCall(GetAssociatedNvidiaDisplayHandle, "AStr", szDisplayName, "Int*", pNvDispHandle, "CDECL"))
-            return pNvDispHandle
-        return NvAPI.GetErrorMessage(NvStatus)
-    }
-
-; ###############################################################################################################################
-
-    GetAssociatedNvidiaDisplayName(thisEnum := 0)
-    {
-        static GetAssociatedNvidiaDisplayName := DllCall(NvAPI.DllFile "\nvapi_QueryInterface", "UInt", 0x22A78B05, "CDECL UPtr")
-        NvDispHandle := NvAPI.EnumNvidiaDisplayHandle(thisEnum)
-        VarSetCapacity(szDisplayName, NvAPI.NVAPI_SHORT_STRING_MAX, 0)
-        if !(NvStatus := DllCall(GetAssociatedNvidiaDisplayName, "Ptr", NvDispHandle, "Ptr", &szDisplayName, "CDECL"))
-            return StrGet(&szDisplayName, "CP0")
-        return NvAPI.GetErrorMessage(NvStatus)
-    }
-
-; ###############################################################################################################################
-
-    GetDVCInfo(outputId := 0)
-    {
-        static GetDVCInfo := DllCall(NvAPI.DllFile "\nvapi_QueryInterface", "UInt", 0x4085DE45, "CDECL UPtr")
-        static NV_DISPLAY_DVC_INFO := 16
-        hNvDisplay := NvAPI.EnumNvidiaDisplayHandle()
-        VarSetCapacity(pDVCInfo, NV_DISPLAY_DVC_INFO), NumPut(NV_DISPLAY_DVC_INFO | 0x10000, pDVCInfo, 0, "UInt")
-        if !(NvStatus := DllCall(GetDVCInfo, "Ptr", hNvDisplay, "UInt", outputId, "Ptr", &pDVCInfo, "CDECL"))
-        {
-            DVC := {}
-            DVC.version      := NumGet(pDVCInfo,  0, "UInt")
-            DVC.currentLevel := NumGet(pDVCInfo,  4, "UInt")
-            DVC.minLevel     := NumGet(pDVCInfo,  8, "UInt")
-            DVC.maxLevel     := NumGet(pDVCInfo, 12, "UInt")
-            return DVC
-        }
-        return NvAPI.GetErrorMessage(NvStatus)
-    }
-
-; ###############################################################################################################################
-
-    GetDVCInfoEx(thisEnum := 0, outputId := 0)
-    {
-        static GetDVCInfoEx := DllCall(NvAPI.DllFile "\nvapi_QueryInterface", "UInt", 0x0E45002D, "CDECL UPtr")
-        static NV_DISPLAY_DVC_INFO_EX := 20
-        hNvDisplay := NvAPI.GetAssociatedNvidiaDisplayHandle(thisEnum)
-        VarSetCapacity(pDVCInfo, NV_DISPLAY_DVC_INFO_EX), NumPut(NV_DISPLAY_DVC_INFO_EX | 0x10000, pDVCInfo, 0, "UInt")
-        if !(NvStatus := DllCall(GetDVCInfoEx, "Ptr", hNvDisplay, "UInt", outputId, "Ptr", &pDVCInfo, "CDECL"))
-        {
-            DVC := {}
-            DVC.version      := NumGet(pDVCInfo,  0, "UInt")
-            DVC.currentLevel := NumGet(pDVCInfo,  4, "Int")
-            DVC.minLevel     := NumGet(pDVCInfo,  8, "Int")
-            DVC.maxLevel     := NumGet(pDVCInfo, 12, "Int")
-            DVC.defaultLevel := NumGet(pDVCInfo, 16, "Int")
-            return DVC
-        }
-        return NvAPI.GetErrorMessage(NvStatus)
-    }
-
-; ###############################################################################################################################
-
-    GetErrorMessage(ErrorCode)
-    {
-        static GetErrorMessage := DllCall(NvAPI.DllFile "\nvapi_QueryInterface", "UInt", 0x6C2D048C, "CDECL UPtr")
-        VarSetCapacity(szDesc, NvAPI.NVAPI_SHORT_STRING_MAX, 0)
-        if !(NvStatus := DllCall(GetErrorMessage, "Ptr", ErrorCode, "WStr", szDesc, "CDECL"))
-            return this.ErrorMessage ? "Error: " StrGet(&szDesc, "CP0") : "*" ErrorCode
-        return NvStatus
-    }
-
-; ###############################################################################################################################
-
-    SetDVCLevel(level, outputId := 0)
-    {
-        static SetDVCLevel := DllCall(NvAPI.DllFile "\nvapi_QueryInterface", "UInt", 0x172409B4, "CDECL UPtr")
-        hNvDisplay := NvAPI.EnumNvidiaDisplayHandle()
-        if !(NvStatus := DllCall(SetDVCLevel, "Ptr", hNvDisplay, "UInt", outputId, "UInt", level, "CDECL"))
-            return level
-        return NvAPI.GetErrorMessage(NvStatus)
-    }
-
-; ###############################################################################################################################
-
-    SetDVCLevelEx(currentLevel, thisEnum := 0, outputId := 0)
-    {
-        static SetDVCLevelEx := DllCall(NvAPI.DllFile "\nvapi_QueryInterface", "UInt", 0x4A82C2B1, "CDECL UPtr")
-        static NV_DISPLAY_DVC_INFO_EX := 20
-        hNvDisplay := NvAPI.GetAssociatedNvidiaDisplayHandle(thisEnum)
-        VarSetCapacity(pDVCInfo, NV_DISPLAY_DVC_INFO_EX)
-        , NumPut(NvAPI.GetDVCInfoEx(thisEnum).version,      pDVCInfo,  0, "UInt")
-        , NumPut(currentLevel,                              pDVCInfo,  4, "Int")
-        , NumPut(NvAPI.GetDVCInfoEx(thisEnum).minLevel,     pDVCInfo,  8, "Int")
-        , NumPut(NvAPI.GetDVCInfoEx(thisEnum).maxLevel,     pDVCInfo, 12, "Int")
-        , NumPut(NvAPI.GetDVCInfoEx(thisEnum).defaultLevel, pDVCInfo, 16, "Int")
-        return DllCall(SetDVCLevelEx, "Ptr", hNvDisplay, "UInt", outputId, "Ptr", &pDVCInfo, "CDECL")
-    }
-
-; ###############################################################################################################################
-
-    _Delete()
-    {
-        DllCall(DllCall(NvAPI.DllFile "\nvapi_QueryInterface", "UInt", 0xD22BDD7E, "CDECL UPtr"), "CDECL")
-        DllCall("FreeLibrary", "Ptr", NvAPI.hmod)
-    }
 }
+
+#Include %A_ScriptDir%\Resources\AHK
+#Include JSON.ahk
+#Include Gui_Funcs.ahk
+#Include Class_NvAPI.ahk
