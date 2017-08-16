@@ -53,7 +53,7 @@ Start_Script() {
 	global GameProfiles 				:= {}
 ;	main infos
 	ProgramValues.Name 					:= "Game Vivifier"
-	ProgramValues.Version 				:= "2.1"
+	ProgramValues.Version 				:= "2.1.BETA_1"
 	ProgramValues.Branch 				:= "dev"
 ;	folders
 	ProgramValues.Local_Folder 			:= A_MyDocuments "\AutoHotkey\" ProgramValues.Name
@@ -1702,7 +1702,7 @@ Check_Update() {
 			}
 		}
 		else {
-			Tray_Notifications_Show(onlineVersionAvailable translations.TITLE_VersionAvailable, translations.MSG_VersionAvailable_AutoUpdate, {Is_Update:1, Fade_Timer:20000, Is_Important:1})
+			Tray_Notifications_Show(onlineVersionAvailable translations.TITLE_VersionAvailable, translations.MSG_VersionAvailable, {Is_Update:1, Fade_Timer:20000, Is_Important:1})
 		}
 	}
 	SetTimer, Check_Update, -1800000
@@ -2149,7 +2149,8 @@ GetMonitorIndexFromWindow(windowHandle="") {
 Reload_Func() {
 	global NVIDIA_Values
 
-	Process, Close,% NVIDIA_Values.Panel_PID
+	Process, Close,% NVIDIA_Values.PID
+	Process, Close, nvcplui.exe
 	Sleep 10
 	Reload
 	Sleep 10000
@@ -2160,7 +2161,8 @@ Exit_Func(ExitReason, ExitCode) {
 
 	if ExitReason not in Reload
 	{
-		Process, Close,% NVIDIA_Values.Panel_PID
+		Process, Close,% NVIDIA_Values.PID
+		Process, Close, nvcplui.exe
 		ExitApp
 	}
 }
