@@ -54,19 +54,20 @@ Start_Script() {
 ;	main infos
 	ProgramValues.Name 					:= "Game Vivifier"
 	ProgramValues.Version 				:= "2.1"
+	ProgramValues.Branch 				:= "dev"
 ;	folders
 	ProgramValues.Local_Folder 			:= A_MyDocuments "\AutoHotkey\" ProgramValues.Name
 	ProgramValues.Logs_Folder 			:= ProgramValues.Local_Folder "\Logs"
 	ProgramValues.Others_Folder 		:= ProgramValues.Local_Folder "\Others"
 ;	updater link
 	ProgramValues.Updater_File 			:= "Game-Vivifier-Updater.exe"
-	ProgramValues.Updater_Link 			:= "https://raw.githubusercontent.com/lemasato/Game-Vivifier/master/Updater_v2.exe"
+	ProgramValues.Updater_Link 			:= "https://raw.githubusercontent.com/lemasato/Game-Vivifier/" ProgramValues.Branch "/Updater_v2.exe"
 ;	verion link / changelogs link
-	ProgramValues.Version_Link 			:= "https://raw.githubusercontent.com/lemasato/Game-Vivifier/master/version.txt"
-	ProgramValues.Changelogs_Link 		:= "https://raw.githubusercontent.com/lemasato/Game-Vivifier/master/changelogs.txt"
+	ProgramValues.Version_Link 			:= "https://raw.githubusercontent.com/lemasato/Game-Vivifier/" ProgramValues.Branch "/version.txt"
+	ProgramValues.Changelogs_Link 		:= "https://raw.githubusercontent.com/lemasato/Game-Vivifier/" ProgramValues.Branch "/changelogs.txt"
 ;	new version link
 	ProgramValues.NewVersion_File		:= "Game-Vivifier-NewVersion.exe"
-	ProgramValues.NewVersion_Link 		:= "https://raw.githubusercontent.com/lemasato/Game-Vivifier/master/Game Vivifier.exe"
+	ProgramValues.NewVersion_Link 		:= "https://raw.githubusercontent.com/lemasato/Game-Vivifier/" ProgramValues.Branch "/Game Vivifier.exe"
 ;	local files
 	ProgramValues.Ini_File 				:= ProgramValues.Local_Folder "\Preferences.ini"
 	ProgramValues.Translations_File		:= ProgramValues.Local_Folder "\Translations.ini"
@@ -81,12 +82,8 @@ Start_Script() {
 ; - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 ;	Directories Creation
 	directories := ProgramValues.Local_Folder
-			; . "`n" ProgramValues.SFX_Folder
 			. "`n" ProgramValues.Logs_Folder
-			; . "`n" ProgramValues.Skins_Folder
-			; . "`n" ProgramValues.Fonts_Folder
 			. "`n" ProgramValues.Others_Folder
-			; . "`n" ProgramValues.Data_Folder
 	Loop, Parse, directories,% "`r`n"
 	{
 		if (!InStr(FileExist(A_LoopField), "D")) {
@@ -111,12 +108,12 @@ Start_Script() {
 	Declare_GameProfiles_Settings(gameProfilesSettings)
 
 	Check_Update()
-	; NVCPL_Be_Ready()
+	NVCPL_Be_Ready()
 	translations := Get_Translations("Tray_Notifications")
 	Tray_Notifications_Show(ProgramValues.Name " v" ProgramValues.Version, translations.MSG_Start), 	translations := ""
 
 	; Gui_Settings()
-	Gui_About()
+	; Gui_About()
 }
 
 Extract_Assets() {
@@ -1109,7 +1106,7 @@ Gui_About(params="") {
 	Return
 
 	Link_NVIDIA_Screenshot:
-		Run,% "https://raw.githubusercontent.com/lemasato/Game-Vivifier/master/Screenshots/Nvidia Control Panel.png"
+		Run,% "https://raw.githubusercontent.com/lemasato/Game-Vivifier/" ProgramValues.Branch "/Screenshots/Nvidia Control Panel.png"
 	Return
 }
 
