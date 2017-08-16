@@ -116,15 +116,40 @@ Start_Script() {
 	; Gui_About()
 }
 
-Extract_Assets() {
-	global ProgramValues
+Set_ThisApp_Settings(winExe="", isHotkey=0) {
+	global GameList, GameProfiles, ProgramSettings
+	static previousMon
 
-	FileInstall, Resources\Others\icon.ico,% ProgramValues.Others_Folder "\icon.ico", 1
-	FileInstall, Resources\Others\DonatePaypal.png,% ProgramValues.Others_Folder "\DonatePaypal.png", 1
+	; Get active win exe
+	if (winExe = "") {
+		WinGet, winExe, ProcessName, A
+	}
+
+	StartTime := A_TickCount
+
+	currentMon := GetMonitorIndexFromWindow(), currentMon-- ; ; We must remove 1, as nvidia index starts at 0
+	isFullScreen := Is_Window_FullScreen()
+
+	; Set this executable settings
+	if winExe in %GameList%
+	{
+		NVIDIA_Set_Settings(GameProfiles[winExe]["Gamma"], GameProfiles[winExe]["Vibrance"], currentMon, isFullScreen, isHotkey)
+	}
+	; Set default settings
+	else {
+		NVIDIA_Set_Settings(ProgramSettings.DEFAULT.Gamma, ProgramSettings.DEFAULT.Vibrance, currentMon, isFullScreen, isHotkey)
+	}
+
+	EndTime := A_TickCount
+
+	previousMon := currentMon
 }
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * 
- *					NVIDIA FUNCTIONS
+ *																					*
+ *			NVCPL FUNCTIONS															*
+ *			Used to interact with the Nvidia Control Panel 							*
+ *																					*
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * 
 */
 	
@@ -475,7 +500,7 @@ NVIDIA_Set_Settings(gamma, vibrance, monitorID, isFullScreen=0, isHotkey=0) {
 }
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * 
- *					SETTINGS GUI
+ *			SETTINGS GUI															*
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * 
 */
 
@@ -878,127 +903,10 @@ Gui_Settings() {
 	Return
 }
 
-Set_ThisApp_Settings(winExe="", isHotkey=0) {
-	global GameList, GameProfiles, ProgramSettings
-	static previousMon
-
-	; Get active win exe
-	if (winExe = "") {
-		WinGet, winExe, ProcessName, A
-	}
-
-	StartTime := A_TickCount
-
-	currentMon := GetMonitorIndexFromWindow(), currentMon-- ; ; We must remove 1, as nvidia index starts at 0
-	isFullScreen := Is_Window_FullScreen()
-
-	; Set this executable settings
-	if winExe in %GameList%
-	{
-		NVIDIA_Set_Settings(GameProfiles[winExe]["Gamma"], GameProfiles[winExe]["Vibrance"], currentMon, isFullScreen, isHotkey)
-	}
-	; Set default settings
-	else {
-		NVIDIA_Set_Settings(ProgramSettings.DEFAULT.Gamma, ProgramSettings.DEFAULT.Vibrance, currentMon, isFullScreen, isHotkey)
-	}
-
-	EndTime := A_TickCount
-
-	previousMon := currentMon
-}
-
-ShellMessage(wParam,lParam) {
-/*			Triggered upon activating a window
- *			Is used to correctly position the Trades GUI while in Overlay mode
+/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * 
+ *					ABOUT GUI 														*
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * 
 */
-	global NVIDIA_Values
-	global NVIDIA_Set_Settings_FullScreen_CANCEL
-	global NVIDIA_Set_Settings_FullScreen_START
-	global NVIDIA_Set_Settings_FullScreen_HANDLE
-
-	if ( wParam=4 or wParam=32772 ) { ; 4=HSHELL_WINDOWACTIVATED | 32772=HSHELL_RUDEAPPACTIVATED
-		WinGet, winExe, ProcessName,% "ahk_id " lParam
-		Set_ThisApp_Settings(winExe)
-		if (NVIDIA_Set_Settings_FullScreen_START && lParam != NVIDIA_Set_Settings_FullScreen_HANDLE) {
-			NVIDIA_Set_Settings_FullScreen_CANCEL := true
-		}
-	}
-}
-
-Is_Window_FullScreen(_handle="") {
-;			Detects if the window is fullscreen
-;			 by checking its style and size
-	if (_handle = "") {
-		WinGet, _handle, ID, A
-	}
-	WinGet _Style, Style, ahk_id %_handle%
-	WinGetPos, , , w, h, ahk_id %_handle%
-	state := ( (_Style & 0x20800000) || h < A_ScreenHeight || w < A_ScreenWidth ) ? false : true
-	return state
-}
-
-IsNum(str) {
-	if str is number
-		return true
-	return false
-}
-
-Set_ActiveWindow_Settings(winID="", gamma="", vibrance="") {
-	global ProgramValues, ProgramSettings
-
-	defGamma := ProgramSettings.DEFAULT.Gamma
-	defVibrance := ProgramSettings.DEFAULT.Vibrance
-	detectHiddenWin := A_DetectHiddenWindows
-	DetectHiddenWindows, On
-
-;	Get win handle, if not specified
-	if !(winID) {
-		WinGet, winID, ID, A
-	}
-;	Get win process name, and its settings
-	WinGet, winEXE, ProcessName,% "ahk_id " winID
-	IniRead, this_gamma,% ProgramValues.Ini_File,% winExe,Gamma
-	IniRead, this_vibrance,% ProgramValues.Ini_File,% winExe,Vibrance
-	if (IsNum(this_gamma) && IsNum(this_vibrance)) && ( (this_gamma != defGamma) || (this_vibrance != defVibrance)) {
-/*	Do the  switch thing
-*/
-	}
-
-	DetectHiddenWindows, %detectHiddenWin%
-}
-
-Get_Running_Apps(_detectHiddenWin=false, _excludedProcesses="", _separator="") {
-	hiddenWindows := A_DetectHiddenWindows
-	_detectHiddenWin := (_detectHiddenWin=true)?("On"):(_detectHiddenWin=false)?("Off"):(_detectHiddenWin)
-	DetectHiddenWindows,% _detectHiddenWin
-
-	excludedProcesses := "explorer.exe,autohotkey.exe,nvcplui.exe," A_ScriptName
-	if (_excludedProcesses && _separator) {
-		_excludedProcesses := StrReplace(_excludedProcesses, _separator, ",")
-	}
-	_excludedProcesses .= excludedProcesses
-
-	WinGet, allWindows, List
-	Loop, %allWindows% 
-	{ 
-		WinGetTitle, winTitle, % "ahk_id " allWindows%A_Index%
-		WinGet, winExe, ProcessName, %winTitle%
-		if (winExe) { ; Hide those who dont have a process attached
-			if winExe not in %_excludedProcesses%
-			{
-				winList .= winExe " // " winTitle "`n"
-			}
-		}
-	}
-	Sort, winList, U ; Sort alphabetically and remove dupes
-
-	DetectHiddenWindows,% hiddenWindows
-
-	Return winList
-
-}
-
-
 
 Gui_About(params="") {
 	static
@@ -1110,7 +1018,10 @@ Gui_About(params="") {
 	Return
 }
 
-
+/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * 
+ *			MISC GUIS 																*
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * 
+*/
 
 Gui_GetControl(ctrlName) {
 /*		Ask the user to click on a specific button so we can retrieve its ClassNN
@@ -1186,7 +1097,253 @@ Gui_GetControl(ctrlName) {
 	return 
 }
 
+GUI_Select_Language() {
+/*		Lets the user choose whichever language suits the best
+*/
+	static
+	global ProgramSettings, ProgramValues
+	translations := Get_Translations("GUI_Select_Language")
 
+	Gui, SelectLang:Destroy
+	Gui, SelectLang:New, +AlwaysOnTop +SysMenu -MinimizeBox -MaximizeBox +OwnDialogs +LabelGUI_Select_Language_ +hwndGuiLangHandler,% ProgramValues.Name
+
+	Gui, SelectLang:Add, Text, x10 y10,% translations.TXT_ChooseLanguage
+	Gui, SelectLang:Add, DropDownList, x10 gGui_LangSelect_List_Event vlangListItem,% translations.DDL_AvailableLangs
+	Gui, SelectLang:Add, Button, x10 y+20 h30 gGui_LangSelect_Apply hwndhApplyBtn,% translations.BTN_Apply
+
+;	Select the previously selected lang
+	lang := (lang)?(lang):("EN") ; Sets default lang
+	Loop, Parse,% translations["DDL_AvailableLangs"],% "|"
+	{
+		RegExMatch(A_LoopField, "(.*)-", thisLangPat)
+		if (thisLangPat1 = lang) {
+			GuiControl, SelectLang:ChooseString,langListItem,% A_LoopField
+		}
+	}
+	
+	Gui, SelectLang:Show, AutoSize
+	WinWait, ahk_id %GuiLangHandler%
+	WinWaitClose, ahk_id %GuiLangHandler%
+	return
+
+	GUI_Select_Language_Size:
+		GuiControl, SelectLang:Move,% hApplyBtn,% "w" A_GuiWidth-15
+	Return
+	
+	Gui_LangSelect_List_Event:
+;		Update the GUI language
+		Gui, SelectLang:Submit, NoHide
+		Gui, SelectLang:+OwnDialogs
+
+;		Retrieve only the language tag
+		RegExMatch(langListItem, "(.*)-", lang)
+		StringTrimRight, lang, lang, 1
+
+;		Set the language setting and reload GUI
+		ProgramSettings.SETTINGS.Language := lang
+		GUI_Select_Language()
+		GuiControl, SelectLang:ChooseString,langListItem,% lang
+	return
+	
+	Gui_LangSelect_Apply:
+		if (lang) {
+			IniWrite,% lang,% ProgramValues.Ini_File,SETTINGS,Language
+			Gui, SelectLang:Destroy
+		}
+	return
+	
+	Gui_LangSelect_Close:
+	return
+	
+	Gui_LangSelect_Escape:
+	return
+}
+
+/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * 
+ *			UPDATE CHECK AND UPDATING												*
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * 
+*/
+
+Download_Updater() {
+	global ProgramValues
+
+	updaterLink 		:= ProgramValues.Updater_Link
+	newVersionLink 		:= ProgramValues.NewVersion_Link
+
+	IniWrite,% A_Now,% ProgramValues.Ini_File,PROGRAM,LastUpdate
+	UrlDownloadToFile,% updaterLink,% ProgramValues.Updater_File
+	Sleep 10
+	if (!ErrorLevel) {
+		Run,% ProgramValues.Updater_File 
+		. " /Name=""" ProgramValues.Name  """"
+		. " /File_Name=""" ProgramValues.Name ".exe" """"
+		. " /Local_Folder=""" ProgramValues.Local_Folder """"
+		. " /Ini_File=""" ProgramValues.Ini_File """"
+		. " /NewVersion_Link=""" newVersionLink """"
+		ExitApp
+	}
+	else {
+		translations := Get_Translations("Tray_Notifications")
+		Tray_Notifications_Show(translations.TITLE_UpdaterDownloadFailed, translations.MSG_UpdaterDownloadFailed)
+	}
+}
+
+Check_Update() {
+;			It works by downloading both the new version and the auto-updater
+;			then closing the current instancie and renaming the new version
+	global ProgramValues
+
+	IniRead, isUsingBeta,% ProgramValues.Ini_File,PROGRAM,Update_Beta, 0
+	IniRead, isAutoUpdateEnabled,% ProgramValues.Ini_File,PROGRAM,Auto_Update, 0
+	IniRead, lastTimeUpdated,% ProgramValues.Ini_File,PROGRAM,LastUpdate,% A_Now
+
+	changeslogsLink 		:= (isUsingBeta)?(ProgramValues.Changelogs_Link_Beta):(ProgramValues.Changelogs_Link)
+	versionLinkStable 		:= ProgramValues.Version_Link
+	versionLinkBeta 		:= ProgramValues.Version_Link_Beta
+	currentVersion 			:= ProgramValues.Version
+
+	translations := Get_Translations("Tray_Notifications")
+
+;	Delete files remaining from updating
+	if FileExist(ProgramValues.Updater_File)
+		FileDelete,% ProgramValues.Updater_File
+	if FileExist(ProgramValues.NewVersion_File)
+		FileDelete,% ProgramValues.NewVersion_File
+
+;	Changelogs file
+	Try {
+		Changelogs_WinHttpReq := ComObjCreate("WinHttp.WinHttpRequest.5.1")
+		Changelogs_WinHttpReq.SetTimeouts("10000", "10000", "10000", "10000")
+
+		Changelogs_WinHttpReq.Open("GET", changeslogsLink, true) ; Using true above and WaitForResponse allows the script to r'emain responsive.
+		Changelogs_WinHttpReq.Send()
+		Changelogs_WinHttpReq.WaitForResponse(10) ; 10 seconds
+
+		changelogsOnline := Changelogs_WinHttpReq.ResponseText
+		changelogsOnline = %changelogsOnline%
+		if ( changelogsOnline ) && !( RegExMatch(changelogsOnline, "Not(Found| Found)") ){
+			try 
+				FileRead, changelogsLocal,% ProgramValues.Changelogs_File
+			catch e
+				Logs_Append("DEBUG", {String:"[WARNING]: Failed to read file """ ProgramValues.Changelogs_File """. Does the file exist?"})
+			if ( changelogsLocal != changelogsOnline ) {
+				try
+					FileDelete, % ProgramValues.Changelogs_File
+				catch e
+					Logs_Append("DEBUG", {String:"[WARNING]: Failed to delete file """ ProgramValues.Changelogs_File """. Does the file exist?"})
+				UrlDownloadToFile, % changeslogsLink,% ProgramValues.Changelogs_File
+			}
+		}
+	}
+	Catch e {
+;		Error Logging
+		Logs_Append("WinHttpRequest", {Obj:e})
+		Tray_Notifications_Show(translations.TITLE_ChangelogsDownloadFailed, translations.MSG_ChangelogsDownloadFailed)
+	}
+	
+;	Version.txt on master branch
+	Try {
+		Version_WinHttpReq := ComObjCreate("WinHttp.WinHttpRequest.5.1")
+		Version_WinHttpReq.SetTimeouts("10000", "10000", "10000", "10000")
+
+		Version_WinHttpReq.Open("GET", versionLinkStable, true)
+		Version_WinHttpReq.Send()
+		Version_WinHttpReq.WaitForResponse(10)
+
+		versionOnline := Version_WinHttpReq.ResponseText
+		versionOnline = %versionOnline%
+		if ( versionOnline ) && !( RegExMatch(versionOnline, "Not(Found| Found)") ) { ; couldn't reach the file, cancel update
+			StringReplace, versionOnline, versionOnline, `n,,1 ; remove the 2nd white line
+			versionOnline = %versionOnline% ; remove any whitespace
+		}
+	}
+	Catch e {
+;		Error Logging
+		Logs_Append("WinHttpRequest", {Obj:e})
+		Tray_Notifications_Show(translations.TITLE_VersionFileDownloadFailed, translations.MSG_VersionFileDownloadFailed)
+	}
+
+;	Set version IDs
+	latestStableVersion 	:= (versionOnline)?(versionOnline):("ERROR")
+	latestStableVersion = %latestStableVersion%
+
+	ProgramValues.Version_Latest 		:= latestStableVersion
+	onlineVersionAvailable				:= ProgramValues.Version_Latest
+	ProgramValues.Version_Online 		:= ProgramValues.Version_Latest
+
+;	Set new version number and notify about update
+	isUpdateAvailable := (latestStableVersion != "ERROR" && latestStableVersion != currentVersion)?(1):(0)
+	ProgramValues.Update_Available := isUpdateAvailable
+
+	if ( isUpdateAvailable ) {
+		if (isAutoUpdateEnabled = 1) {
+			timeDif := A_Now
+			EnvSub, timeDif,% lastTimeUpdated, Seconds
+			if (timeDif > 61 || !timeDif) { ; !timeDif means var was not in YYYYMMDDHH24MISS format 
+				Tray_Notifications_Show(onlineVersionAvailable . translations.TITLE_VersionAvailable, translations.MSG_VersionAvailable_AutoUpdate)
+				Download_Updater()
+			}
+		}
+		else {
+			Tray_Notifications_Show(onlineVersionAvailable translations.TITLE_VersionAvailable, translations.MSG_VersionAvailable, {Is_Update:1, Fade_Timer:20000, Is_Important:1})
+		}
+	}
+	SetTimer, Check_Update, -1800000
+}
+
+/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * 
+ *			LOCAL SETTINGS															*
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * 
+*/
+
+Get_GameProfiles_Settings() {
+	global ProgramValues
+
+	IniRead, allSections,% ProgramValues.Ini_File
+	mySettings := {}
+	Loop, Parse, allSections,% "`n`r"
+	{
+		if RegExMatch(A_LoopField, ".exe") {
+			mySettings[A_LoopField] := {}
+			IniRead, gammaVal,% ProgramValues.Ini_File,% A_LoopField,Gamma
+			IniRead, vibranceVal,% ProgramValues.Ini_File,% A_LoopField,Vibrance
+
+			mySettings[A_LoopField]["Gamma"] := gammaVal
+			mySettings[A_LoopField]["Vibrance"] := vibranceVal
+
+		}
+	}
+
+	return mySettings
+}
+
+Declare_GameProfiles_Settings(settings) {
+	global GameProfiles, ProgramValues, GameList
+
+	GameList := ""
+
+	for _section, nothing in settings { ; For every section in the settings array
+
+		GameList .= "," _section
+
+		subArr := settings[_section] ; Declare the subArray for this section so we can access its keys
+		if !(GameProfiles[_section]) { ; Create the sub-array if non-existent
+			GameProfiles[_section] := {}
+		}
+
+		for iniKey, value in subArr { ; For every keys in the subArray
+			if (settings[_section][iniKey] != "ERROR") { ; As long as the value exists, add to the global GameProfiles array
+				GameProfiles[_section][iniKey] := value
+			}
+			else { ; This should never trigger as values are handled by another function. BUT YOU NEVER KNOW.... YOU NEVER KNOW
+				Msgbox,4096,% ProgramValues.Name, % "Unable to declare setting: " _section "." iniKey " with value: " value 
+													. "`nPlease report this issue."
+			}
+		}
+	}
+
+	StringTrimLeft, GameList, GameList, 1 ; Remove first comma
+}
 
 Update_Local_Settings() {
 /*	Cross-release changes that need updating
@@ -1230,7 +1387,137 @@ Update_Local_Settings() {
 	}
 }
 
+Set_Local_Settings() {
+/*		Set local settings, specific to the application
+*/
+	global ProgramValues
+	static iniFile
 
+	iniFile := ProgramValues.Ini_File
+
+;	Set the PID and filename, used for the auto updater
+	IniWrite,% ProgramValues.PID,% iniFile,PROGRAM,PID
+	IniWrite,% """" A_ScriptName """",% iniFile,PROGRAM,FileName
+
+	HiddenWindows := A_DetectHiddenWindows
+	DetectHiddenWindows On
+	WinGet, fileProcessName, ProcessName,% "ahk_pid " ProgramValues.PID
+	IniWrite,% """" fileProcessName """",% iniFile,PROGRAM,FileProcessName
+	DetectHiddenWindows, %HiddenWindows%
+
+;	Set current version, used for Update_Local_Settings()
+	IniWrite,% ProgramValues.Version,% iniFile,% "PROGRAM",% "Version"
+}
+
+Get_Local_Settings() {
+/*		Retrieve the local settings
+ *		If setting does not exist, set its default value
+*/
+	global ProgramValues
+	static iniFile
+
+	iniFile 			:= ProgramValues.Ini_File
+	settings 			:= {}
+
+;	PROGRAM
+	IniRead, value,% iniFile,PROGRAM,Auto_Update
+	if ( value = "ERROR" ||value = "" ) {
+		IniWrite, 1,% iniFile,PROGRAM,Auto_Update
+	}
+
+;	SETTINGS
+	keys 		:= ["Language"]
+	defValues 	:= ["",0]
+	for id, iniKey in keys {
+		IniRead, value,% iniFile,SETTINGS,% iniKey
+		if ( value = "ERROR" || value = "" ) {
+			value := defValues[id]
+			IniWrite,% value,% iniFile,SETTINGS,% iniKey
+		}
+		if (iniKey = "Language" && value = "") {
+			GUI_Select_Language()
+		}
+		settings.SETTINGS[iniKey] := value
+	}
+
+;	NVIDIA_PANEL
+	keys 		:= ["Control_AdjustDesktop","Control_AdjustDesktopText","Location"]
+	for id, iniKey in keys {
+		IniRead, value,% iniFile,NVIDIA_PANEL,% iniKey
+		if ( value = "ERROR" || value = "") {
+			value := ""
+		}
+		settings.NVIDIA_PANEL[iniKey] := value
+	}
+
+;	DEFAULT
+	keys 		:= ["Gamma","Vibrance"]
+	for id, iniKey in keys {
+		IniRead, value,% iniFile,DEFAULT,% iniKey
+		if ( value = "ERROR" || value = "") {
+			value := (iniKey = "Gamma")?(100):(iniKey = "Vibrance")?(50):("")
+			IniWrite,% value,% iniFile,DEFAULT,% iniKey
+		}
+		settings.DEFAULT[iniKey] := value
+	}
+
+	return settings
+}
+
+Declare_Local_Settings(settings) {
+/*		Declare the settings to a global variable
+*/
+	global ProgramSettings, ProgramValues
+
+	for _section, nothing in settings { ; For every section in the settings array
+
+		subArr := settings[_section] ; Declare the subArray for this section so we can access its keys
+		if !(ProgramSettings[_section]) { ; Create the sub-array if non-existent
+			ProgramSettings[_section] := {}
+		}
+
+		for iniKey, value in subArr { ; For every keys in the subArray
+			if (settings[_section][iniKey] != "ERROR") { ; As long as the value exists, add to the global ProgramSettings array
+				ProgramSettings[_section][iniKey] := value
+			}
+			else { ; This should never trigger as values are handled by another function. BUT YOU NEVER KNOW.... YOU NEVER KNOW
+				Msgbox,4096,% ProgramValues.Name, % "Unable to declare setting: " _section "." iniKey " with value: " value 
+													. "`nPlease report this issue."
+			}
+		}
+	}
+}
+
+Extract_Assets() {
+/*		Include assets in the executable and extract them to their respective folder on launch
+*/
+	global ProgramValues
+
+	FileInstall, Resources\Others\icon.ico,% ProgramValues.Others_Folder "\icon.ico", 1
+	FileInstall, Resources\Others\DonatePaypal.png,% ProgramValues.Others_Folder "\DonatePaypal.png", 1
+}
+
+Update_Startup_Shortcut() {
+/*		Update the startup shortcut, or remove it if disabled
+*/
+	global ProgramSettings, ProgramValues
+
+	FileDelete, % A_Startup "\" ProgramValues.Name ".lnk" ; Remove the old shortcut
+
+	if (ProgramSettings.SETTINGS.RunOnStartup) { ; Place new shortcut, if enabled
+		FileCreateShortcut,% A_ScriptFullPath,% A_Startup "\" ProgramValues.Name ".lnk"
+	}
+}
+
+/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * 
+ *			HOTKEYS 																*
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * 
+*/
+
+/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * 
+ *			LOGS FILE																*
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * 
+*/
 
 Logs_Append(funcName, params) {
 	global ProgramValues, ProgramSettings
@@ -1303,49 +1590,85 @@ Logs_Append(funcName, params) {
 	}
 }
 
-Get_Control_Coords(guiName, ctrlHandler) {
-/*		Retrieve a control's position and return them in an array.
-		The reason of this function is because the variable content would be blank
-			unless its sub-variables (coordsX, coordsY, ...) were set to global.
-			(Weird AHK bug)
-*/
-	GuiControlGet, coords, %guiName%:Pos,% ctrlHandler
-	return {X:coordsX,Y:coordsY,W:coordsW,H:coordsH}
-}
 
-Get_Text_Control_Size(txt, fontName, fontSize, maxWidth="") {
-/*		Create a control with the specified text to retrieve
- *		the space (width/height) it would normally take
-*/
-	Gui, GetTextSize:Font, S%fontSize%,% fontName
-	if (maxWidth) 
-		Gui, GetTextSize:Add, Text,x0 y0 +Wrap w%maxWidth% hwndTxtHandler,% txt
-	else 
-		Gui, GetTextSize:Add, Text,x0 y0 hwndTxtHandler,% txt
-	coords := Get_Control_Coords("GetTextSize", TxtHandler)
-	Gui, GetTextSize:Destroy
+Get_Running_Apps(_detectHiddenWin=false, _excludedProcesses="", _separator="") {
+	hiddenWindows := A_DetectHiddenWindows
+	_detectHiddenWin := (_detectHiddenWin=true)?("On"):(_detectHiddenWin=false)?("Off"):(_detectHiddenWin)
+	DetectHiddenWindows,% _detectHiddenWin
 
-	return coords
-
-/*	Alternative version, with auto sizing
-
-	Gui, GetTextSize:Font, S%fontSize%,% fontName
-	Gui, GetTextsize:Add, Text,x0 y0 hwndTxtHandlerAutoSize,% txt
-	coordsAuto := Get_Control_Coords("GetTextSize", TxtHandlerAutoSize)
-	if (maxWidth) {
-		Gui, GetTextSize:Add, Text,x0 y0 +Wrap w%maxWidth% hwndTxtHandlerFixedSize,% txt
-		coordsFixed := Get_Control_Coords("GetTextSize", TxtHandlerFixedSize)
+	excludedProcesses := "explorer.exe,autohotkey.exe,nvcplui.exe," A_ScriptName
+	if (_excludedProcesses && _separator) {
+		_excludedProcesses := StrReplace(_excludedProcesses, _separator, ",")
 	}
-	Gui, GetTextSize:Destroy
+	_excludedProcesses .= excludedProcesses
 
-	if (maxWidth > coords.Auto)
-		coords := coordsAuto
-	else
-		coords := coordsFixed
+	WinGet, allWindows, List
+	Loop, %allWindows% 
+	{ 
+		WinGetTitle, winTitle, % "ahk_id " allWindows%A_Index%
+		WinGet, winExe, ProcessName, %winTitle%
+		if (winExe) { ; Hide those who dont have a process attached
+			if winExe not in %_excludedProcesses%
+			{
+				winList .= winExe " // " winTitle "`n"
+			}
+		}
+	}
+	Sort, winList, U ; Sort alphabetically and remove dupes
 
-	return coords
-*/
+	DetectHiddenWindows,% hiddenWindows
+
+	Return winList
+
 }
+/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * 
+ *			TRAY ICON MENU															*
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * 
+*/
+
+Create_Tray_Menu() {	
+/*		Create the tray menu
+*/
+	global ProgramValues
+	static tranlations_Hide
+
+	translations := Get_Translations("Tray_Menu")
+	tranlations_Hide := translations.Hide
+
+	Menu, Tray, DeleteAll
+	Menu, Tray, NoStandard
+
+	Menu, Tray, Tip,% ProgramValues.Name
+	Menu, Tray, Add,% translations.Settings, Gui_Settings
+	Menu, Tray, Add,% translations.About, Gui_About
+	Menu, Tray, Add, 
+	Menu, Tray, Add,% translations.Hide, Tray_Hide
+	Menu, Tray, Check,% translations.Hide
+	Menu, Tray, Add
+	Menu, Tray, Add,% translations.Reload, Reload_Func
+	Menu, Tray, Add,% translations.Close, Exit_Func
+	if (A_IconHidden) {
+		Menu, Tray, NoIcon
+		Menu, Tray, Icon
+	}
+	return
+
+	Tray_Hide: 
+		if WinExist("ahk_exe nvcplui.exe") {
+			Menu, Tray, Check,% tranlations_Hide
+			WinHide ahk_id %nvHandler%
+		}
+		else {
+			Menu, Tray, UnCheck,% tranlations_Hide
+			WinShow, ahk_id %nvHandler%
+		}
+	return
+}
+
+/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * 
+ *			TRAY NOTIFICATIONS														*
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * 
+*/
 
 Tray_Notifications_Adjust(fromNum, creationOrder) {
 	global TrayNotifications_Handles
@@ -1581,183 +1904,10 @@ Tray_Notifications_Fade(index="", start=false) {
 	return transparency%index%
 }
 
-Download_Updater() {
-	global ProgramValues
-
-	updaterLink 		:= ProgramValues.Updater_Link
-	newVersionLink 		:= ProgramValues.NewVersion_Link
-
-	IniWrite,% A_Now,% ProgramValues.Ini_File,PROGRAM,LastUpdate
-	UrlDownloadToFile,% updaterLink,% ProgramValues.Updater_File
-	Sleep 10
-	if (!ErrorLevel) {
-		Run,% ProgramValues.Updater_File 
-		. " /Name=""" ProgramValues.Name  """"
-		. " /File_Name=""" ProgramValues.Name ".exe" """"
-		. " /Local_Folder=""" ProgramValues.Local_Folder """"
-		. " /Ini_File=""" ProgramValues.Ini_File """"
-		. " /NewVersion_Link=""" newVersionLink """"
-		ExitApp
-	}
-	else {
-		translations := Get_Translations("Tray_Notifications")
-		Tray_Notifications_Show(translations.TITLE_UpdaterDownloadFailed, translations.MSG_UpdaterDownloadFailed)
-	}
-}
-
-Check_Update() {
-;			It works by downloading both the new version and the auto-updater
-;			then closing the current instancie and renaming the new version
-	global ProgramValues
-
-	IniRead, isUsingBeta,% ProgramValues.Ini_File,PROGRAM,Update_Beta, 0
-	IniRead, isAutoUpdateEnabled,% ProgramValues.Ini_File,PROGRAM,Auto_Update, 0
-	IniRead, lastTimeUpdated,% ProgramValues.Ini_File,PROGRAM,LastUpdate,% A_Now
-
-	changeslogsLink 		:= (isUsingBeta)?(ProgramValues.Changelogs_Link_Beta):(ProgramValues.Changelogs_Link)
-	versionLinkStable 		:= ProgramValues.Version_Link
-	versionLinkBeta 		:= ProgramValues.Version_Link_Beta
-	currentVersion 			:= ProgramValues.Version
-
-	translations := Get_Translations("Tray_Notifications")
-
-;	Delete files remaining from updating
-	if FileExist(ProgramValues.Updater_File)
-		FileDelete,% ProgramValues.Updater_File
-	if FileExist(ProgramValues.NewVersion_File)
-		FileDelete,% ProgramValues.NewVersion_File
-
-;	Changelogs file
-	Try {
-		Changelogs_WinHttpReq := ComObjCreate("WinHttp.WinHttpRequest.5.1")
-		Changelogs_WinHttpReq.SetTimeouts("10000", "10000", "10000", "10000")
-
-		Changelogs_WinHttpReq.Open("GET", changeslogsLink, true) ; Using true above and WaitForResponse allows the script to r'emain responsive.
-		Changelogs_WinHttpReq.Send()
-		Changelogs_WinHttpReq.WaitForResponse(10) ; 10 seconds
-
-		changelogsOnline := Changelogs_WinHttpReq.ResponseText
-		changelogsOnline = %changelogsOnline%
-		if ( changelogsOnline ) && !( RegExMatch(changelogsOnline, "Not(Found| Found)") ){
-			try 
-				FileRead, changelogsLocal,% ProgramValues.Changelogs_File
-			catch e
-				Logs_Append("DEBUG", {String:"[WARNING]: Failed to read file """ ProgramValues.Changelogs_File """. Does the file exist?"})
-			if ( changelogsLocal != changelogsOnline ) {
-				try
-					FileDelete, % ProgramValues.Changelogs_File
-				catch e
-					Logs_Append("DEBUG", {String:"[WARNING]: Failed to delete file """ ProgramValues.Changelogs_File """. Does the file exist?"})
-				UrlDownloadToFile, % changeslogsLink,% ProgramValues.Changelogs_File
-			}
-		}
-	}
-	Catch e {
-;		Error Logging
-		Logs_Append("WinHttpRequest", {Obj:e})
-		Tray_Notifications_Show(translations.TITLE_ChangelogsDownloadFailed, translations.MSG_ChangelogsDownloadFailed)
-	}
-	
-;	Version.txt on master branch
-	Try {
-		Version_WinHttpReq := ComObjCreate("WinHttp.WinHttpRequest.5.1")
-		Version_WinHttpReq.SetTimeouts("10000", "10000", "10000", "10000")
-
-		Version_WinHttpReq.Open("GET", versionLinkStable, true)
-		Version_WinHttpReq.Send()
-		Version_WinHttpReq.WaitForResponse(10)
-
-		versionOnline := Version_WinHttpReq.ResponseText
-		versionOnline = %versionOnline%
-		if ( versionOnline ) && !( RegExMatch(versionOnline, "Not(Found| Found)") ) { ; couldn't reach the file, cancel update
-			StringReplace, versionOnline, versionOnline, `n,,1 ; remove the 2nd white line
-			versionOnline = %versionOnline% ; remove any whitespace
-		}
-	}
-	Catch e {
-;		Error Logging
-		Logs_Append("WinHttpRequest", {Obj:e})
-		Tray_Notifications_Show(translations.TITLE_VersionFileDownloadFailed, translations.MSG_VersionFileDownloadFailed)
-	}
-
-;	Set version IDs
-	latestStableVersion 	:= (versionOnline)?(versionOnline):("ERROR")
-	latestStableVersion = %latestStableVersion%
-
-	ProgramValues.Version_Latest 		:= latestStableVersion
-	onlineVersionAvailable				:= ProgramValues.Version_Latest
-	ProgramValues.Version_Online 		:= ProgramValues.Version_Latest
-
-;	Set new version number and notify about update
-	isUpdateAvailable := (latestStableVersion != "ERROR" && latestStableVersion != currentVersion)?(1):(0)
-	ProgramValues.Update_Available := isUpdateAvailable
-
-	if ( isUpdateAvailable ) {
-		if (isAutoUpdateEnabled = 1) {
-			timeDif := A_Now
-			EnvSub, timeDif,% lastTimeUpdated, Seconds
-			if (timeDif > 61 || !timeDif) { ; !timeDif means var was not in YYYYMMDDHH24MISS format 
-				Tray_Notifications_Show(onlineVersionAvailable . translations.TITLE_VersionAvailable, translations.MSG_VersionAvailable_AutoUpdate)
-				Download_Updater()
-			}
-		}
-		else {
-			Tray_Notifications_Show(onlineVersionAvailable translations.TITLE_VersionAvailable, translations.MSG_VersionAvailable, {Is_Update:1, Fade_Timer:20000, Is_Important:1})
-		}
-	}
-	SetTimer, Check_Update, -1800000
-}
-
-Update_Startup_Shortcut() {
-/*		Update the startup shortcut, or remove it if disabled
+/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * 
+ *			MISC FUNCTIONS 															*
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * 
 */
-	global ProgramSettings, ProgramValues
-
-	FileDelete, % A_Startup "\" ProgramValues.Name ".lnk" ; Remove the old shortcut
-
-	if (ProgramSettings.SETTINGS.RunOnStartup) { ; Place new shortcut, if enabled
-		FileCreateShortcut,% A_ScriptFullPath,% A_Startup "\" ProgramValues.Name ".lnk"
-	}
-}
-
-Create_Tray_Menu() {	
-/*		Create the tray menu
-*/
-	global ProgramValues
-	static tranlations_Hide
-
-	translations := Get_Translations("Tray_Menu")
-	tranlations_Hide := translations.Hide
-
-	Menu, Tray, DeleteAll
-	Menu, Tray, NoStandard
-
-	Menu, Tray, Tip,% ProgramValues.Name
-	Menu, Tray, Add,% translations.Settings, Gui_Settings
-	Menu, Tray, Add,% translations.About, Gui_About
-	Menu, Tray, Add, 
-	Menu, Tray, Add,% translations.Hide, Tray_Hide
-	Menu, Tray, Check,% translations.Hide
-	Menu, Tray, Add
-	Menu, Tray, Add,% translations.Reload, Reload_Func
-	Menu, Tray, Add,% translations.Close, Exit_Func
-	if (A_IconHidden) {
-		Menu, Tray, NoIcon
-		Menu, Tray, Icon
-	}
-	return
-
-	Tray_Hide: 
-		if WinExist("ahk_exe nvcplui.exe") {
-			Menu, Tray, Check,% tranlations_Hide
-			WinHide ahk_id %nvHandler%
-		}
-		else {
-			Menu, Tray, UnCheck,% tranlations_Hide
-			WinShow, ahk_id %nvHandler%
-		}
-	return
-}
 
 Close_Previous_Program_Instance() {
 /*
@@ -1846,216 +1996,84 @@ Get_Translations(_section) {
 */
 }
 
-GUI_Select_Language() {
-/*		Lets the user choose whichever language suits the best
+ShellMessage(wParam,lParam) {
+/*			Triggered upon activating a window
+ *			Is used to correctly position the Trades GUI while in Overlay mode
 */
-	static
-	global ProgramSettings, ProgramValues
-	translations := Get_Translations("GUI_Select_Language")
+	global NVIDIA_Values
+	global NVIDIA_Set_Settings_FullScreen_CANCEL
+	global NVIDIA_Set_Settings_FullScreen_START
+	global NVIDIA_Set_Settings_FullScreen_HANDLE
 
-	Gui, SelectLang:Destroy
-	Gui, SelectLang:New, +AlwaysOnTop +SysMenu -MinimizeBox -MaximizeBox +OwnDialogs +LabelGUI_Select_Language_ +hwndGuiLangHandler,% ProgramValues.Name
-
-	Gui, SelectLang:Add, Text, x10 y10,% translations.TXT_ChooseLanguage
-	Gui, SelectLang:Add, DropDownList, x10 gGui_LangSelect_List_Event vlangListItem,% translations.DDL_AvailableLangs
-	Gui, SelectLang:Add, Button, x10 y+20 h30 gGui_LangSelect_Apply hwndhApplyBtn,% translations.BTN_Apply
-
-;	Select the previously selected lang
-	lang := (lang)?(lang):("EN") ; Sets default lang
-	Loop, Parse,% translations["DDL_AvailableLangs"],% "|"
-	{
-		RegExMatch(A_LoopField, "(.*)-", thisLangPat)
-		if (thisLangPat1 = lang) {
-			GuiControl, SelectLang:ChooseString,langListItem,% A_LoopField
+	if ( wParam=4 or wParam=32772 ) { ; 4=HSHELL_WINDOWACTIVATED | 32772=HSHELL_RUDEAPPACTIVATED
+		WinGet, winExe, ProcessName,% "ahk_id " lParam
+		Set_ThisApp_Settings(winExe)
+		if (NVIDIA_Set_Settings_FullScreen_START && lParam != NVIDIA_Set_Settings_FullScreen_HANDLE) {
+			NVIDIA_Set_Settings_FullScreen_CANCEL := true
 		}
 	}
-	
-	Gui, SelectLang:Show, AutoSize
-	WinWait, ahk_id %GuiLangHandler%
-	WinWaitClose, ahk_id %GuiLangHandler%
-	return
-
-	GUI_Select_Language_Size:
-		GuiControl, SelectLang:Move,% hApplyBtn,% "w" A_GuiWidth-15
-	Return
-	
-	Gui_LangSelect_List_Event:
-;		Update the GUI language
-		Gui, SelectLang:Submit, NoHide
-		Gui, SelectLang:+OwnDialogs
-
-;		Retrieve only the language tag
-		RegExMatch(langListItem, "(.*)-", lang)
-		StringTrimRight, lang, lang, 1
-
-;		Set the language setting and reload GUI
-		ProgramSettings.SETTINGS.Language := lang
-		GUI_Select_Language()
-		GuiControl, SelectLang:ChooseString,langListItem,% lang
-	return
-	
-	Gui_LangSelect_Apply:
-		if (lang) {
-			IniWrite,% lang,% ProgramValues.Ini_File,SETTINGS,Language
-			Gui, SelectLang:Destroy
-		}
-	return
-	
-	Gui_LangSelect_Close:
-	return
-	
-	Gui_LangSelect_Escape:
-	return
 }
 
-Set_Local_Settings() {
-/*		Set local settings, specific to the application
+Is_Window_FullScreen(_handle="") {
+;			Detects if the window is fullscreen
+;			 by checking its style and size
+	if (_handle = "") {
+		WinGet, _handle, ID, A
+	}
+	WinGet _Style, Style, ahk_id %_handle%
+	WinGetPos, , , w, h, ahk_id %_handle%
+	state := ( (_Style & 0x20800000) || h < A_ScreenHeight || w < A_ScreenWidth ) ? false : true
+	return state
+}
+
+IsNum(str) {
+	if str is number
+		return true
+	return false
+}
+
+Get_Control_Coords(guiName, ctrlHandler) {
+/*		Retrieve a control's position and return them in an array.
+		The reason of this function is because the variable content would be blank
+			unless its sub-variables (coordsX, coordsY, ...) were set to global.
+			(Weird AHK bug)
 */
-	global ProgramValues
-	static iniFile
-
-	iniFile := ProgramValues.Ini_File
-
-;	Set the PID and filename, used for the auto updater
-	IniWrite,% ProgramValues.PID,% iniFile,PROGRAM,PID
-	IniWrite,% """" A_ScriptName """",% iniFile,PROGRAM,FileName
-
-	HiddenWindows := A_DetectHiddenWindows
-	DetectHiddenWindows On
-	WinGet, fileProcessName, ProcessName,% "ahk_pid " ProgramValues.PID
-	IniWrite,% """" fileProcessName """",% iniFile,PROGRAM,FileProcessName
-	DetectHiddenWindows, %HiddenWindows%
-
-;	Set current version, used for Update_Local_Settings()
-	IniWrite,% ProgramValues.Version,% iniFile,% "PROGRAM",% "Version"
+	GuiControlGet, coords, %guiName%:Pos,% ctrlHandler
+	return {X:coordsX,Y:coordsY,W:coordsW,H:coordsH}
 }
 
-Get_GameProfiles_Settings() {
-	global ProgramValues
-
-	IniRead, allSections,% ProgramValues.Ini_File
-	mySettings := {}
-	Loop, Parse, allSections,% "`n`r"
-	{
-		if RegExMatch(A_LoopField, ".exe") {
-			mySettings[A_LoopField] := {}
-			IniRead, gammaVal,% ProgramValues.Ini_File,% A_LoopField,Gamma
-			IniRead, vibranceVal,% ProgramValues.Ini_File,% A_LoopField,Vibrance
-
-			mySettings[A_LoopField]["Gamma"] := gammaVal
-			mySettings[A_LoopField]["Vibrance"] := vibranceVal
-
-		}
-	}
-
-	return mySettings
-}
-
-Declare_GameProfiles_Settings(settings) {
-	global GameProfiles, ProgramValues, GameList
-
-	GameList := ""
-
-	for _section, nothing in settings { ; For every section in the settings array
-
-		GameList .= "," _section
-
-		subArr := settings[_section] ; Declare the subArray for this section so we can access its keys
-		if !(GameProfiles[_section]) { ; Create the sub-array if non-existent
-			GameProfiles[_section] := {}
-		}
-
-		for iniKey, value in subArr { ; For every keys in the subArray
-			if (settings[_section][iniKey] != "ERROR") { ; As long as the value exists, add to the global GameProfiles array
-				GameProfiles[_section][iniKey] := value
-			}
-			else { ; This should never trigger as values are handled by another function. BUT YOU NEVER KNOW.... YOU NEVER KNOW
-				Msgbox,4096,% ProgramValues.Name, % "Unable to declare setting: " _section "." iniKey " with value: " value 
-													. "`nPlease report this issue."
-			}
-		}
-	}
-
-	StringTrimLeft, GameList, GameList, 1 ; Remove first comma
-}
-
-Get_Local_Settings() {
-/*		Retrieve the local settings
- *		If setting does not exist, set its default value
+Get_Text_Control_Size(txt, fontName, fontSize, maxWidth="") {
+/*		Create a control with the specified text to retrieve
+ *		the space (width/height) it would normally take
 */
-	global ProgramValues
-	static iniFile
+	Gui, GetTextSize:Font, S%fontSize%,% fontName
+	if (maxWidth) 
+		Gui, GetTextSize:Add, Text,x0 y0 +Wrap w%maxWidth% hwndTxtHandler,% txt
+	else 
+		Gui, GetTextSize:Add, Text,x0 y0 hwndTxtHandler,% txt
+	coords := Get_Control_Coords("GetTextSize", TxtHandler)
+	Gui, GetTextSize:Destroy
 
-	iniFile 			:= ProgramValues.Ini_File
-	settings 			:= {}
+	return coords
 
-;	PROGRAM
-	IniRead, value,% iniFile,PROGRAM,Auto_Update
-	if ( value = "ERROR" ||value = "" ) {
-		IniWrite, 1,% iniFile,PROGRAM,Auto_Update
+/*	Alternative version, with auto sizing
+
+	Gui, GetTextSize:Font, S%fontSize%,% fontName
+	Gui, GetTextsize:Add, Text,x0 y0 hwndTxtHandlerAutoSize,% txt
+	coordsAuto := Get_Control_Coords("GetTextSize", TxtHandlerAutoSize)
+	if (maxWidth) {
+		Gui, GetTextSize:Add, Text,x0 y0 +Wrap w%maxWidth% hwndTxtHandlerFixedSize,% txt
+		coordsFixed := Get_Control_Coords("GetTextSize", TxtHandlerFixedSize)
 	}
+	Gui, GetTextSize:Destroy
 
-;	SETTINGS
-	keys 		:= ["Language"]
-	defValues 	:= ["",0]
-	for id, iniKey in keys {
-		IniRead, value,% iniFile,SETTINGS,% iniKey
-		if ( value = "ERROR" || value = "" ) {
-			value := defValues[id]
-			IniWrite,% value,% iniFile,SETTINGS,% iniKey
-		}
-		if (iniKey = "Language" && value = "") {
-			GUI_Select_Language()
-		}
-		settings.SETTINGS[iniKey] := value
-	}
+	if (maxWidth > coords.Auto)
+		coords := coordsAuto
+	else
+		coords := coordsFixed
 
-;	NVIDIA_PANEL
-	keys 		:= ["Control_AdjustDesktop","Control_AdjustDesktopText","Location"]
-	for id, iniKey in keys {
-		IniRead, value,% iniFile,NVIDIA_PANEL,% iniKey
-		if ( value = "ERROR" || value = "") {
-			value := ""
-		}
-		settings.NVIDIA_PANEL[iniKey] := value
-	}
-
-;	DEFAULT
-	keys 		:= ["Gamma","Vibrance"]
-	for id, iniKey in keys {
-		IniRead, value,% iniFile,DEFAULT,% iniKey
-		if ( value = "ERROR" || value = "") {
-			value := (iniKey = "Gamma")?(100):(iniKey = "Vibrance")?(50):("")
-			IniWrite,% value,% iniFile,DEFAULT,% iniKey
-		}
-		settings.DEFAULT[iniKey] := value
-	}
-
-	return settings
-}
-
-Declare_Local_Settings(settings) {
-/*		Declare the settings to a global variable
+	return coords
 */
-	global ProgramSettings, ProgramValues
-
-	for _section, nothing in settings { ; For every section in the settings array
-
-		subArr := settings[_section] ; Declare the subArray for this section so we can access its keys
-		if !(ProgramSettings[_section]) { ; Create the sub-array if non-existent
-			ProgramSettings[_section] := {}
-		}
-
-		for iniKey, value in subArr { ; For every keys in the subArray
-			if (settings[_section][iniKey] != "ERROR") { ; As long as the value exists, add to the global ProgramSettings array
-				ProgramSettings[_section][iniKey] := value
-			}
-			else { ; This should never trigger as values are handled by another function. BUT YOU NEVER KNOW.... YOU NEVER KNOW
-				Msgbox,4096,% ProgramValues.Name, % "Unable to declare setting: " _section "." iniKey " with value: " value 
-													. "`nPlease report this issue."
-			}
-		}
-	}
 }
 
 Tray_Refresh() {
