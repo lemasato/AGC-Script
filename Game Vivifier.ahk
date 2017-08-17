@@ -1,25 +1,37 @@
 /* 
 	Game Vivifier by lemasato
-	Allows NVIDIA users to have custom gamma/vibrance profiles for their game
+	Allows NVIDIA users to have custom gamma/vibrance profiles for their applications
+
 	https://autohotkey.com/boards/viewtopic.php?t=9455
 	https://github.com/lemasato/Game-Vivifier
 
-	TODO: 	GUI_Settings()
-			Switch()
-			ShellMessage()
-				if activeEXE is in %myExe%
-					do the switch thing
+	What to test:
+		- Updating:
+			Upgrading from 2.0.13. See if the process goes well.
+			Import of .ini settings. Delete older unused settings.
+	
+		- Auto detection:
+			See if the control can be automatically retrieven
+			Simulate a failure, to make the user choose the control manuall
+			Change the .ini value for the control and the control text.
+				See if changing Static2 to Static4 successfully re-detect Static2 on launch
+				Change "Régler les paramètres" text to something else, see if the difference is detected
 
-			Test NVCPL_Check_Control_Valid()
-			Test Gui_Get_Control()
+		- Settings:
+		x	Add an app to the settings. Play around with the Settings.
+		x	Try out each hotkey individually then simultaneously
 
-			Include translation file
-			Include icon file, for notifications
-			Edit nofitications function for icon
+		- About:
+			Upon upgrading, see if the GUI is shown
 
-			on start, make sure first monitor is selected
-				get monitor count
-				send left arrow as many monitors
+		- Hotkeys:
+		x	Not added app: Change its settings, play around and see if they are kept.
+		x	Press the Trigger/Save hotkey, see if the temp settings from the current app are saved
+		x	Added app: Change its settings, open the Settings to see if the variables are correct
+		x	Use the function used to save all settings, see if the temp settings from existing app are saved
+
+	What to fix so far:
+		Say you have two chrome.exe, one on each monitor. Switching back and forth will NOT enable the app settings.
 */
 
 #Warn LocalSameAsGlobal, StdOut
@@ -34,23 +46,18 @@ SetWinDelay, 0
 DetectHiddenWindows, Off
 ListLines, Off
 
-Menu, Tray, Tip,Game Vivifier
+Menu,Tray, Tip,Game Vivifier
 Menu,Tray,NoStandard
 Menu,Tray,Add,Close,Exit_Func
 
-;___Window Switch Detect___;
+Gui +LastFound 
+Hwnd := WinExist()
+DllCall( "RegisterShellHookWindow", UInt,Hwnd )
+MsgNum := DllCall( "RegisterWindowMessage", Str,"SHELLHOOK" )
+OnMessage( MsgNum, "ShellMessage")
 
-ShellMessage_Toggle(1)
 Start_Script()
 Return
-
-ShellMessage_Toggle(state) {
-	Gui +LastFound 
-	Hwnd := WinExist()
-	DllCall( "RegisterShellHookWindow", UInt,Hwnd )
-	MsgNum := DllCall( "RegisterWindowMessage", Str,"SHELLHOOK" )
-	OnMessage( MsgNum, "ShellMessage", state)
-}
 
 Start_Script() {
 /*
@@ -81,6 +88,8 @@ Start_Script() {
 	ProgramValues.Translations_File		:= ProgramValues.Local_Folder "\Translations.ini"
 	ProgramValues.Changelogs_File 		:= ProgramValues.Logs_Folder "\Changelogs.txt"
 	ProgramValues.Logs_File				:= ProgramValues.Logs_Folder "\DebugLogs.txt"
+
+	global ExcludedProcesses 			:= "explorer.exe,autohotkey.exe,nvcplui.exe," A_ScriptName
 	
 	
 
@@ -101,6 +110,7 @@ Start_Script() {
 ; - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 	Close_Previous_Program_Instance()
+
 	Tray_Refresh()
 
 	Update_Local_Settings()
@@ -120,9 +130,9 @@ Start_Script() {
 	Check_Update()
 	NVCPL_Be_Ready()
 	translations := Get_Translations("Tray_Notifications")
-	Tray_Notifications_Show(ProgramValues.Name " v" ProgramValues.Version, translations.MSG_Start), 	translations := ""
+	Tray_Notifications_Show(ProgramValues.Name " v" ProgramValues.Version, translations.MSG_Start), translations := ""
 
-	SetTimer, Save_Temporary_GameProfiles, 1000
+	SetTimer, Save_Temporary_GameProfiles, 600000
 	; Gui_Settings()
 	; Gui_About()
 }
@@ -264,6 +274,7 @@ NVCPL_Run() {
 		}
 	}
 
+	; Run,% nvPath, , Min,nvPID
 	Run,% nvPath, , Min,nvPID
 	WinWait,% "ahk_pid " nvPID
 	WinGet, nvHandler, ID,% "ahk_pid " nvPID
@@ -383,7 +394,7 @@ NVCPL_Trigger_Control(ctrlName, params="") {
 	_gammaSlider 			:= "msctls_trackbar323"
 
 	if (ctrlName = "Use_NVIDIA_Settings") {
-		ControlClick, _useNVIDIASettings,% "ahk_id " _nvHandler ; Click it
+		ControlClick,% _useNVIDIASettings,% "ahk_id " _nvHandler ; Click it
 		Sleep 100 ; Sleep to let the NVCPL process it
 	}
 	else if (ctrlName = "Adjust_Desktop") {
@@ -485,16 +496,17 @@ NVIDIA_Set_Settings(gamma, vibrance, monitorID=0, isFullScreen=0, isHotkey=0) {
 	if (prev_MonitorID != monitorID) {
 		defaultGamma 		:= ProgramSettings.DEFAULT.Gamma
 		defaultVibrance 	:= ProgramSettings.DEFAULT.Vibrance
-		if ( prev_gamma != defaultGamma && IsNum(prev_gamma)  ) 
+		if ( prev_gamma != defaultGamma && IsNum(defaultGamma)  ) 
 			NVCPL_Trigger_Control("Gamma", {Gamma:defaultGamma, Monitor:prev_MonitorID})
-		if ( prev_vibrance != defaultVibrance && IsNum(prev_vibrance)  )
+		if ( prev_vibrance != defaultVibrance && IsNum(defaultVibrance)  )
 			NVCPL_Trigger_Control("Vibrance", {Vibrance:defaultVibrance, Monitor:prev_MonitorID})
 	}
-	if ( (prev_gamma != gamma) || (prev_vibrance != vibrance) || isHotkey ) {
+	if ( (prev_gamma != gamma) || (prev_vibrance != vibrance) || isHotkey || prev_MonitorID != monitorID ) {
 		NVCPL_Trigger_Control("Select_Monitor", {Monitor:monitorID})
-		if ( prev_gamma != gamma && IsNum(prev_gamma) || isHotkey )
+		if ( prev_gamma != gamma && IsNum(gamma) || isHotkey || prev_MonitorID != monitorID) {
 			NVCPL_Trigger_Control("Gamma", {Gamma:gamma, Monitor:monitorID})
-		if ( prev_vibrance != vibrance && IsNum(prev_vibrance) || isHotkey)
+		}
+		if ( prev_vibrance != vibrance && IsNum(vibrance) || isHotkey || prev_MonitorID != monitorID)
 			NVCPL_Trigger_Control("Vibrance", {Vibrance:vibrance, Monitor:monitorID})
 
 		; Fullscreen app tend to revert our settings, we wait a bit then re-apply them
@@ -594,6 +606,9 @@ Gui_Settings() {
 	Gui_Add({_Type:"Slider",_Content:ProgramSettings.DEFAULT.Vibrance,_Pos:"xp-100 y+0 w210",_Var:"SLIDER_SelectedAppVibrance",_Label:labelPrefix "SelectedAppSettings_OnVibranceChange",_Opts:"Disabled AltSubmit Line5 Page5 ToolTip Range0-100"})
 
 ;	HOTKEYS
+	hkSettings := ProgramSettings.HOTKEYS
+	hkModSettings := ProgramSettings.HOTKEYS_MODIFIERS
+
 	Gui_Add({_Type:"GroupBox",_Content:translations.GB_Hotkeys,_Pos:"xm y+10 w" (profileBoxWidth*2)+80 " h120",_Color:"Black",_Opts:"Section"})
 	Gui_Add({_Type:"ListBox",_Content:"Gamma`nVibrance`nSpecial",_Pos:"xs+10 ys+20 w120 R3",_Var:"LB_Hotkeys",_Label:labelPrefix "LB_OnHotkeyTabSelect",_Choose:"1",_Opts:"Section"})
 	Gui_Add({_Type:"Tab2",_Pos:"x0 y0 w0 h0",_Content:"Gamma`nVibrance`nSpecial",_Var:"TAB_Hotkeys",_Opts:"-Wrap"})
@@ -601,47 +616,47 @@ Gui_Settings() {
 	; Gamma++
 	Gui, Settings:Tab, Gamma
 	Gui_Add({_Type:"Text",_Content:translations.TEXT_Increase,_Pos:"xs+140 ys+5"})
-	Gui_Add({_Type:"Hotkey",_Content:"",_Pos:"x+5 yp-3 w125",_Var:"HK_GammaPlus",_Label:labelPrefix "HK_OnHotkeyChange",_Opts:"Limit190"}) ; 190 = no modifier allowed - modifier are replaced by !^
-	Gui_Add({_Type:"Checkbox",_Content:"CTRL",_Pos:"xs+140 y+5",_Label:labelPrefix "CB_OnHotkeyCheckModifier",_Var:"CB_GammaPlusCTRL"})
-	Gui_Add({_Type:"Checkbox",_Content:"ALT",_Pos:"x+0 yp",_Label:labelPrefix "CB_OnHotkeyCheckModifier",_Var:"CB_GammaPlusALT"})
-	Gui_Add({_Type:"Checkbox",_Content:"SHIFT",_Pos:"x+0 yp",_Label:labelPrefix "CB_OnHotkeyCheckModifier",_Var:"CB_GammaPlusSHIFT"})
-	Gui_Add({_Type:"Checkbox",_Content:"WIN",_Pos:"x+0 yp",_Label:labelPrefix "CB_OnHotkeyCheckModifier",_Var:"CB_GammaPlusWIN"})
+	Gui_Add({_Type:"Hotkey",_Content:hkSettings["GammaPlus"],_Pos:"x+5 yp-3 w125",_Var:"HK_GammaPlus",_Label:labelPrefix "HK_OnHotkeyChange",_Opts:"Limit190"}) ; 190 = no modifier allowed - modifier are replaced by !^
+	Gui_Add({_Type:"Checkbox",_Content:"CTRL",_Pos:"xs+140 y+5",_Label:labelPrefix "CB_OnHotkeyCheckModifier",_Var:"CB_GammaPlusCTRL",_CB_State:hkModSettings["GammaPlusCTRL"]})
+	Gui_Add({_Type:"Checkbox",_Content:"ALT",_Pos:"x+0 yp",_Label:labelPrefix "CB_OnHotkeyCheckModifier",_Var:"CB_GammaPlusALT",_CB_State:hkModSettings["GammaPlusALT"]})
+	Gui_Add({_Type:"Checkbox",_Content:"SHIFT",_Pos:"x+0 yp",_Label:labelPrefix "CB_OnHotkeyCheckModifier",_Var:"CB_GammaPlusSHIFT",_CB_State:hkModSettings["GammaPlusSHIFT"]})
+	Gui_Add({_Type:"Checkbox",_Content:"WIN",_Pos:"x+0 yp",_Label:labelPrefix "CB_OnHotkeyCheckModifier",_Var:"CB_GammaPlusWIN",_CB_State:hkModSettings["GammaPlusWIN"]})
 	; Gamma --
 	Gui_Add({_Type:"Text",_Content:translations.TEXT_Reduce,_Pos:"xs+360 ys+5"})
-	Gui_Add({_Type:"Hotkey",_Content:"",_Pos:"x+5 yp-3 w125",_Var:"HK_GammaMinus",_Label:labelPrefix "HK_OnHotkeyChange",_Opts:"Limit190"}) ; 190 = no modifier allowed - modifier are replaced by !^
-	Gui_Add({_Type:"Checkbox",_Content:"CTRL",_Pos:"xs+360 y+5",_Label:labelPrefix "CB_OnHotkeyCheckModifier",_Var:"CB_GammaMinusCTRL"})
-	Gui_Add({_Type:"Checkbox",_Content:"ALT",_Pos:"x+0 yp",_Label:labelPrefix "CB_OnHotkeyCheckModifier",_Var:"CB_GammaMinusALT"})
-	Gui_Add({_Type:"Checkbox",_Content:"SHIFT",_Pos:"x+0 yp",_Label:labelPrefix "CB_OnHotkeyCheckModifier",_Var:"CB_GammaMinusSHIFT"})
-	Gui_Add({_Type:"Checkbox",_Content:"WIN",_Pos:"x+0 yp",_Label:labelPrefix "CB_OnHotkeyCheckModifier",_Var:"CB_GammaMinusWIN"})
+	Gui_Add({_Type:"Hotkey",_Content:hkSettings["GammaMinus"],_Pos:"x+5 yp-3 w125",_Var:"HK_GammaMinus",_Label:labelPrefix "HK_OnHotkeyChange",_Opts:"Limit190"}) ; 190 = no modifier allowed - modifier are replaced by !^
+	Gui_Add({_Type:"Checkbox",_Content:"CTRL",_Pos:"xs+360 y+5",_Label:labelPrefix "CB_OnHotkeyCheckModifier",_Var:"CB_GammaMinusCTRL",_CB_State:hkModSettings["GammaMinusCTRL"]})
+	Gui_Add({_Type:"Checkbox",_Content:"ALT",_Pos:"x+0 yp",_Label:labelPrefix "CB_OnHotkeyCheckModifier",_Var:"CB_GammaMinusALT",_CB_State:hkModSettings["GammaMinusALT"]})
+	Gui_Add({_Type:"Checkbox",_Content:"SHIFT",_Pos:"x+0 yp",_Label:labelPrefix "CB_OnHotkeyCheckModifier",_Var:"CB_GammaMinusSHIFT",_CB_State:hkModSettings["GammaMinusSHIFT"]})
+	Gui_Add({_Type:"Checkbox",_Content:"WIN",_Pos:"x+0 yp",_Label:labelPrefix "CB_OnHotkeyCheckModifier",_Var:"CB_GammaMinusWIN",_CB_State:hkModSettings["GammaMinusWIN"]})
 
 	Gui_Add({_Type:"Text",_Pos:"xs ys+50",_Content:translations.TEXT_HK_GammaTabHelp})
 	; VIBRANCE
 	; Vibrance ++
 	Gui, Settings:Tab, Vibrance
 	Gui_Add({_Type:"Text",_Content:translations.TEXT_Increase,_Pos:"xs+140 ys+5"})
-	Gui_Add({_Type:"Hotkey",_Content:"",_Pos:"x+5 yp-3 w125",_Var:"HK_VibrancePlus",_Label:labelPrefix "HK_OnHotkeyChange",_Opts:"Limit190"}) ; 190 = no modifier allowed - modifier are replaced by !^
-	Gui_Add({_Type:"Checkbox",_Content:"CTRL",_Pos:"xs+140 y+5",_Label:labelPrefix "CB_OnHotkeyCheckModifier",_Var:"CB_VibrancePlusCTRL"})
-	Gui_Add({_Type:"Checkbox",_Content:"ALT",_Pos:"x+0 yp",_Label:labelPrefix "CB_OnHotkeyCheckModifier",_Var:"CB_VibrancePlusALT"})
-	Gui_Add({_Type:"Checkbox",_Content:"SHIFT",_Pos:"x+0 yp",_Label:labelPrefix "CB_OnHotkeyCheckModifier",_Var:"CB_VibrancePlusSHIFT"})
-	Gui_Add({_Type:"Checkbox",_Content:"WIN",_Pos:"x+0 yp",_Label:labelPrefix "CB_OnHotkeyCheckModifier",_Var:"CB_VibrancePlusWIN"})
+	Gui_Add({_Type:"Hotkey",_Content:hkSettings["VibrancePlus"],_Pos:"x+5 yp-3 w125",_Var:"HK_VibrancePlus",_Label:labelPrefix "HK_OnHotkeyChange",_Opts:"Limit190"}) ; 190 = no modifier allowed - modifier are replaced by !^
+	Gui_Add({_Type:"Checkbox",_Content:"CTRL",_Pos:"xs+140 y+5",_Label:labelPrefix "CB_OnHotkeyCheckModifier",_Var:"CB_VibrancePlusCTRL",_CB_State:hkModSettings["VibrancePlusCTRL"]})
+	Gui_Add({_Type:"Checkbox",_Content:"ALT",_Pos:"x+0 yp",_Label:labelPrefix "CB_OnHotkeyCheckModifier",_Var:"CB_VibrancePlusALT",_CB_State:hkModSettings["VibrancePlusALT"]})
+	Gui_Add({_Type:"Checkbox",_Content:"SHIFT",_Pos:"x+0 yp",_Label:labelPrefix "CB_OnHotkeyCheckModifier",_Var:"CB_VibrancePlusSHIFT",_CB_State:hkModSettings["VibrancePlusSHIFT"]})
+	Gui_Add({_Type:"Checkbox",_Content:"WIN",_Pos:"x+0 yp",_Label:labelPrefix "CB_OnHotkeyCheckModifier",_Var:"CB_VibrancePlusWIN",_CB_State:hkModSettings["VibrancePlusWIN"]})
 	; Vibrance --
 	Gui_Add({_Type:"Text",_Content:translations.TEXT_Reduce,_Pos:"xs+360 ys+5"})
-	Gui_Add({_Type:"Hotkey",_Content:"",_Pos:"x+5 yp-3 w125",_Var:"HK_VibranceMinus",_Label:labelPrefix "HK_OnHotkeyChange",_Opts:"Limit190"}) ; 190 = no modifier allowed - modifier are replaced by !^
-	Gui_Add({_Type:"Checkbox",_Content:"CTRL",_Pos:"xs+360 y+5",_Label:labelPrefix "CB_OnHotkeyCheckModifier",_Var:"CB_VibranceMinusCTRL"})
-	Gui_Add({_Type:"Checkbox",_Content:"ALT",_Pos:"x+0 yp",_Label:labelPrefix "CB_OnHotkeyCheckModifier",_Var:"CB_VibranceMinusALT"})
-	Gui_Add({_Type:"Checkbox",_Content:"SHIFT",_Pos:"x+0 yp",_Label:labelPrefix "CB_OnHotkeyCheckModifier",_Var:"CB_VibranceMinusSHIFT"})
-	Gui_Add({_Type:"Checkbox",_Content:"WIN",_Pos:"x+0 yp",_Label:labelPrefix "CB_OnHotkeyCheckModifier",_Var:"CB_VibranceMinusWIN"})
+	Gui_Add({_Type:"Hotkey",_Content:hkSettings["VibranceMinus"],_Pos:"x+5 yp-3 w125",_Var:"HK_VibranceMinus",_Label:labelPrefix "HK_OnHotkeyChange",_Opts:"Limit190"}) ; 190 = no modifier allowed - modifier are replaced by !^
+	Gui_Add({_Type:"Checkbox",_Content:"CTRL",_Pos:"xs+360 y+5",_Label:labelPrefix "CB_OnHotkeyCheckModifier",_Var:"CB_VibranceMinusCTRL",_CB_State:hkModSettings["VibranceMinusCTRL"]})
+	Gui_Add({_Type:"Checkbox",_Content:"ALT",_Pos:"x+0 yp",_Label:labelPrefix "CB_OnHotkeyCheckModifier",_Var:"CB_VibranceMinusALT",_CB_State:hkModSettings["VibranceMinusALT"]})
+	Gui_Add({_Type:"Checkbox",_Content:"SHIFT",_Pos:"x+0 yp",_Label:labelPrefix "CB_OnHotkeyCheckModifier",_Var:"CB_VibranceMinusSHIFT",_CB_State:hkModSettings["VibranceMinusSHIFT"]})
+	Gui_Add({_Type:"Checkbox",_Content:"WIN",_Pos:"x+0 yp",_Label:labelPrefix "CB_OnHotkeyCheckModifier",_Var:"CB_VibranceMinusWIN",_CB_State:hkModSettings["VibranceMinusWIN"]})
 
 	Gui_Add({_Type:"Text",_Pos:"xs ys+50",_Content:translations.TEXT_HK_VibranceTabHelp})
 	; SPECIAL
 	; Trigger settings
 	Gui, Settings:Tab, Special
 	Gui_Add({_Type:"Text",_Content:translations.TEXT_TriggerSave,_Pos:"xs+140 ys+5"})
-	Gui_Add({_Type:"Hotkey",_Content:"",_Pos:"x+5 yp-3 w125",_Var:"HK_TriggerAndSave",_Label:labelPrefix "HK_OnHotkeyChange",_Opts:"Limit190"}) ; 190 = no modifier allowed - modifier are replaced by !^
-	Gui_Add({_Type:"Checkbox",_Content:"CTRL",_Pos:"xs+140 y+5",_Label:labelPrefix "CB_OnHotkeyCheckModifier",_Var:"CB_TriggerAndSaveCTRL"})
-	Gui_Add({_Type:"Checkbox",_Content:"ALT",_Pos:"x+0 yp",_Label:labelPrefix "CB_OnHotkeyCheckModifier",_Var:"CB_TriggerAndSaveALT"})
-	Gui_Add({_Type:"Checkbox",_Content:"SHIFT",_Pos:"x+0 yp",_Label:labelPrefix "CB_OnHotkeyCheckModifier",_Var:"CB_TriggerAndSaveSHIFT"})
-	Gui_Add({_Type:"Checkbox",_Content:"WIN",_Pos:"x+0 yp",_Label:labelPrefix "CB_OnHotkeyCheckModifier",_Var:"CB_TriggerAndSaveWIN"})
+	Gui_Add({_Type:"Hotkey",_Content:hkSettings["TriggerAndSave"],_Pos:"x+5 yp-3 w125",_Var:"HK_TriggerAndSave",_Label:labelPrefix "HK_OnHotkeyChange",_Opts:"Limit190"}) ; 190 = no modifier allowed - modifier are replaced by !^
+	Gui_Add({_Type:"Checkbox",_Content:"CTRL",_Pos:"xs+140 y+5",_Label:labelPrefix "CB_OnHotkeyCheckModifier",_Var:"CB_TriggerAndSaveCTRL",_CB_State:hkModSettings["TriggerAndSaveCTRL"]})
+	Gui_Add({_Type:"Checkbox",_Content:"ALT",_Pos:"x+0 yp",_Label:labelPrefix "CB_OnHotkeyCheckModifier",_Var:"CB_TriggerAndSaveALT",_CB_State:hkModSettings["TriggerAndSaveALT"]})
+	Gui_Add({_Type:"Checkbox",_Content:"SHIFT",_Pos:"x+0 yp",_Label:labelPrefix "CB_OnHotkeyCheckModifier",_Var:"CB_TriggerAndSaveSHIFT",_CB_State:hkModSettings["TriggerAndSaveSHIFT"]})
+	Gui_Add({_Type:"Checkbox",_Content:"WIN",_Pos:"x+0 yp",_Label:labelPrefix "CB_OnHotkeyCheckModifier",_Var:"CB_TriggerAndSaveWIN",_CB_State:hkModSettings["TriggerAndSaveWIN"]})
 	; Save settings
 	; Gui_Add({_Type:"Text",_Content:"Save:",_Pos:"xs+360 ys+5"})
 	; Gui_Add({_Type:"Hotkey",_Content:"",_Pos:"x+5 yp-3 w125",_Var:"HK_SaveSettings",_Label:"",_Opts:"Limit190"}) ; 190 = no modifier allowed - modifier are replaced by !^
@@ -1365,12 +1380,11 @@ Declare_GameProfiles_Settings(settings) {
 		}
 
 		for iniKey, value in subArr { ; For every keys in the subArray
-			if (settings[_section][iniKey] != "ERROR") { ; As long as the value exists, add to the global GameProfiles array
+			if IsNum(settings[_section][iniKey]) { ; As long as the value exists, add to the global GameProfiles array
 				GameProfiles[_section][iniKey] := value
 			}
-			else { ; This should never trigger as values are handled by another function. BUT YOU NEVER KNOW.... YOU NEVER KNOW
-				Msgbox,4096,% ProgramValues.Name, % "Unable to declare setting: " _section "." iniKey " with value: " value 
-													. "`nPlease report this issue."
+			else { ; Invalid value
+				Logs_Append("DEBUG", {String:"[WARNING] Unable to declare setting " _section "." iniKey " with value: " value "."})
 			}
 		}
 	}
@@ -1563,12 +1577,15 @@ Save_Temporary_GameProfiles(whichApp="ALL") {
 	}
 ;	Write a specific app settings, if they differ from the ini
 	else {
+		thisApp_gamma 		:= GameProfiles[whichApp]["Gamma"]
+		thisApp_Vibrance 	:= GameProfiles[whichApp]["Vibrance"]
+
 		IniRead, gamma,% iniFile,% app, Gamma
-		if (gamma != GameProfiles[whichApp]["Gamma"])
-			IniWrite,% GameProfiles[whichApp]["Gamma"],% iniFile,% whichApp,Gamma
+		if (gamma != thisApp_gamma && IsNum(thisApp_gamma))
+			IniWrite,% thisApp_gamma,% iniFile,% whichApp,Gamma
 		IniRead, vibrance,% iniFile,% app, Vibrance
-		if (vibrance != GameProfiles[whichApp]["Vibrance"])
-			IniWrite,% GameProfiles[whichApp]["Vibrance"],% iniFile,% whichApp,Vibrance
+		if (vibrance != thisApp_Vibrance && IsNum(thisApp_Vibrance))
+			IniWrite,% thisApp_Vibrance,% iniFile,% whichApp,Vibrance
 	}
 }
 
@@ -1627,7 +1644,7 @@ Enable_Hotkeys() {
 
 
 Hotkeys_Handler() {
-	global ProgramHotkeys, ProgramSettings, GameProfiles, GameList
+	global ProgramHotkeys, ProgramSettings, GameProfiles, GameList, ExcludedProcesses
 	static gamma, vibrance, activeEXE, prev_activeEXE
 
 	for hotkeyName, boundKey in ProgramHotkeys {
@@ -1641,6 +1658,9 @@ Hotkeys_Handler() {
 	StringTrimRight, actions, actions, 1 ; Remove last comma
 
 	WinGet, activeEXE, ProcessName, A
+	if activeExe in %ExcludedProcesses%
+		Return
+
 	if (activeEXE != prev_activeEXE) {
 		thisAppGamma := GameProfiles[activeEXE]["Gamma"], thisAppVibrance := GameProfiles[activeEXE]["Vibrance"]
 		gammaLastNum := SubStr(thisAppGamma, 0, 1), vibranceLastNum := SubStr(thisAppVibrance, 0, 1)
@@ -1777,15 +1797,16 @@ Logs_Append(funcName, params) {
 
 
 Get_Running_Apps(_detectHiddenWin=false, _excludedProcesses="", _separator="") {
+	global ExcludedProcesses
+
 	hiddenWindows := A_DetectHiddenWindows
 	_detectHiddenWin := (_detectHiddenWin=true)?("On"):(_detectHiddenWin=false)?("Off"):(_detectHiddenWin)
 	DetectHiddenWindows,% _detectHiddenWin
 
-	excludedProcesses := "explorer.exe,autohotkey.exe,nvcplui.exe," A_ScriptName
 	if (_excludedProcesses && _separator) {
 		_excludedProcesses := StrReplace(_excludedProcesses, _separator, ",")
 	}
-	_excludedProcesses .= excludedProcesses
+	_excludedProcesses .= ExcludedProcesses
 
 	WinGet, allWindows, List
 	Loop, %allWindows% 
@@ -2369,7 +2390,6 @@ Exit_Func(ExitReason, ExitCode) {
 		Return
 	}
 
-	ShellMessage_Toggle(0)
 	SysGet, MonitorCount, MonitorCount
 	Loop %MonitorCount% {
 		NVIDIA_Set_Settings(ProgramSettings.DEFAULT.Gamma, ProgramSettings.DEFAULT.Vibrance, A_Index, 0, 1)
