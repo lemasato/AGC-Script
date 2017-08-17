@@ -24,22 +24,7 @@ Start_Script() {
 	global ProgramValues := {}
 
 	Handle_CommandLine_Parameters()
-
-	ProgramValues.Local_Folder_Old_1 		:= userprofile "\Documents\AutoHotKey\POE Trades Helper\"
-	ProgramValues.Local_Folder_Old_2 		:= userprofile "\Documents\AutoHotKey\" ProgramValues.Name
-
 	Close_Program_Instancies()
-
-;	Deleting old POE Trades Helper folder is it exists
-	if InStr(FileExist(ProgramValues.Local_Folder_Old_1), "D") {
-		FileRemoveDir,% ProgramValues.Local_Folder_Old_1, 1
-	}
-
-;	Comparing userprofile\Documents and A_MyDocuments location. Move old location to new one.
-	if InStr(FileExist(ProgramValues.Local_Folder_Old_2), "D") && (ProgramValues.Local_Folder_Old_2 != ProgramValues.Local_Folder) {
-		FileMoveDir,% ProgramValues.Local_Folder_Old_2,% ProgramValues.Local_Folder, 2
-	}
-
 ;	Downloading the new version.
 	Download_New_Version()
 }
@@ -79,7 +64,7 @@ Close_Program_Instancies() {
 	IniRead, programPID,% ProgramValues.Ini_File,PROGRAM,PID
 	IniRead, fileName,% ProgramValues.Ini_File,PROGRAM,FileName
 
-	executables := programPID "|" fileName "|POE Trades Helper.exe|POE-Trades-Helper.exe"
+	executables := programPID "|" fileName
 	Loop, Parse, executables, D|
 	{
 		Process, Close,% A_LoopField
