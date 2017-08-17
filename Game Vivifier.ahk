@@ -22,7 +22,7 @@
 		x	Try out each hotkey individually then simultaneously
 
 		- About:
-			Upon upgrading, see if the GUI is shown
+		x	Upon upgrading, see if the GUI is shown
 
 		- Hotkeys:
 		x	Not added app: Change its settings, play around and see if they are kept.
@@ -92,8 +92,6 @@ Start_Script() {
 	ProgramValues.Logs_File				:= ProgramValues.Logs_Folder "\DebugLogs.txt"
 
 	global ExcludedProcesses 			:= "explorer.exe,autohotkey.exe,nvcplui.exe," A_ScriptName
-	
-	
 
 	ProgramValues.PID 					:= DllCall("GetCurrentProcessId")
 
@@ -1450,6 +1448,13 @@ Update_Local_Settings() {
 				IniWrite,% value,% iniFile,NVIDIA_PANEL,% newKeys[id]
 			}
 		}
+	}
+
+	IniRead, openChangelogs,% iniFile,PROGRAM,Show_Changelogs, 0
+	if ( openChangelogs = 1 ) {
+		Check_Update()
+		Gui_About()
+		IniWrite, 0,% iniFile,PROGRAM,Show_Changelogs
 	}
 }
 
