@@ -16,6 +16,10 @@
 			Include translation file
 			Include icon file, for notifications
 			Edit nofitications function for icon
+
+			on start, make sure first monitor is selected
+				get monitor count
+				send left arrow as many monitors
 */
 
 #Warn LocalSameAsGlobal, StdOut
@@ -106,24 +110,30 @@ Start_Script() {
 
 	gameProfilesSettings := Get_GameProfiles_Settings()
 	Declare_GameProfiles_Settings(gameProfilesSettings)
+	Enable_Hotkeys()
 
+	Save_Temporary_GameProfiles("ALL")
 	Check_Update()
 	NVCPL_Be_Ready()
 	translations := Get_Translations("Tray_Notifications")
 	Tray_Notifications_Show(ProgramValues.Name " v" ProgramValues.Version, translations.MSG_Start), 	translations := ""
 
+	SetTimer, Save_Temporary_GameProfiles, 1000
 	; Gui_Settings()
 	; Gui_About()
 }
 
 Set_ThisApp_Settings(winExe="", isHotkey=0) {
-	global GameList, GameProfiles, ProgramSettings
+	global GameList, GameProfiles, ProgramSettings, NVIDIA_Values
 	static previousMon
 
 	; Get active win exe
 	if (winExe = "") {
 		WinGet, winExe, ProcessName, A
 	}
+
+	if !NVIDIA_Values.Is_Ready
+		Return
 
 	StartTime := A_TickCount
 
@@ -340,7 +350,7 @@ NVIDIA_Get_Control(ctrlName) {
 				found := true
 			if (A_Index > 20 || found)
 				Break
-			; i++ ; __TO_BE_CHANGED__ Don't forget to enable once done testings
+			i++
 		}
 		if (found) {
 			ctrlStatic := "Static" i, ctrlStaticText := ctrlText
@@ -428,7 +438,7 @@ NVCPL_Trigger_Control(ctrlName, params="") {
 	*/
 }
 
-NVIDIA_Set_Settings(gamma, vibrance, monitorID, isFullScreen=0, isHotkey=0) {
+NVIDIA_Set_Settings(gamma, vibrance, monitorID=0, isFullScreen=0, isHotkey=0) {
 	global ProgramValues, NVIDIA_Values, ProgramSettings
 	global NVIDIA_Set_Settings_FullScreen_CANCEL
 	global NVIDIA_Set_Settings_FullScreen_START
@@ -452,6 +462,14 @@ NVIDIA_Set_Settings(gamma, vibrance, monitorID, isFullScreen=0, isHotkey=0) {
 		NVCPL_Be_Ready()
 		Return
 	}
+
+	if (gamma="prev") {
+		gamma := (IsNum(prev_gamma))?(prev_gamma):(ProgramSettings.DEFAULT.Gamma)
+	}
+	if (vibrance="prev") {
+		vibrance := (IsNum(prev_vibrance))?(prev_vibrance):(ProgramSettings.DEFAULT.Vibrance)
+	}
+
 	; Reset previous monitor settings
 	if (prev_MonitorID != monitorID) {
 		defaultGamma 		:= ProgramSettings.DEFAULT.Gamma
@@ -893,11 +911,15 @@ Gui_Settings() {
 */		GoSub Gui_Settings_Submit
 		GoSub Gui_Settings_SaveSettings
 
+		Disable_Hotkeys()
+
 		localSettings := Get_Local_Settings()
 		Declare_Local_Settings(localSettings)
 
 		gameProfilesSettings := Get_GameProfiles_Settings()
 		Declare_GameProfiles_Settings(gameProfilesSettings)
+
+		Enable_Hotkeys()
 
 		Gui, Settings:Destroy
 	Return
@@ -1042,7 +1064,7 @@ Gui_GetControl(ctrlName) {
 	Gui_Add({_Type:"Text",_Content:translations.TEXT_Expected,_Pos:"xm y+25"})
 	Gui_Add({_Type:"Edit",_Content:"Static2",_Pos:"xp+60 yp-5 w80",_Var:"EDIT_Expected",_Opts:"ReadOnly"})
 	Gui_Add({_Type:"Text",_Content:translations.TEXT_Example,_Pos:"x+5"})
-	Gui_Add({_Type:"Text",_Content:translations.TEXT_Retrieved,_Pos:"xm y+10"})
+	Gui_Add({_Type:"Text",_Content:translations.TEXT_Retrieved,_Pos:"xm y+20"})
 	Gui_Add({_Type:"Edit",_Pos:"xp+60 yp-5 w80",_Var:"EDIT_Retrieved",_Opts:"ReadOnly"})
 	Gui_Add({_Type:"Button",_Content:translations.BTN_Accept,_Pos:"x+10 yp-7 w100 h30",_Label:labelPrefix "Accept",_Handler:"hBTN_Accept",_Opts:"ReadOnly +Disabled"})
 	Gui_Add({_Type:"Text",_Content:translations.TEXT_Contribute,_Pos:"xm y+20"})
@@ -1461,6 +1483,28 @@ Get_Local_Settings() {
 		settings.DEFAULT[iniKey] := value
 	}
 
+;	HOTKEYS
+	keys 		:= ["GammaPlus","GammaMinus","VibrancePlus","VibranceMinus","TriggerAndSave"]
+	subKeys 	:= ["ALT","CTRL","SHIFT","WIN"]
+	for id, iniKey in keys {
+		; The hotkey itself
+		IniRead, value,% iniFile,HOTKEYs,% iniKey
+		if (value = "ERROR") {
+			value := """"""
+			IniWrite,% value,% iniFile,HOTKEYS,% iniKey
+		}
+		settings.HOTKEYS[iniKey] := value
+		; Its modifiers
+		for id, subIniKey in subKeys {
+			IniRead, value,% iniFile,HOTKEYS,% iniKey . subIniKey
+			if (value = "ERROR" || value = "") {
+				value := "0"
+				IniWrite,% value,% iniFile,HOTKEYS,% iniKey . subIniKey
+			}
+			settings.HOTKEYS_MODIFIERS[iniKey . subIniKey] := value
+		}
+	}
+
 	return settings
 }
 
@@ -1485,6 +1529,35 @@ Declare_Local_Settings(settings) {
 													. "`nPlease report this issue."
 			}
 		}
+	}
+}
+
+Save_Temporary_GameProfiles(whichApp="ALL") {
+	global GameProfiles, ProgramSettings, ProgramValues
+
+	iniFile := ProgramValues.Ini_File
+
+;	Save all apps settings, if they already have an existing profile and the setting differ from the ini
+	if (whichApp = "ALL") {
+		for app, nothing in GameProfiles {
+			IniRead, gamma,% iniFile,% app, Gamma
+			IniRead, vibrance,% iniFile,% app, Vibrance
+			if (gamma != "" && gamma != "ERROR") && (vibrance != "" && vibrance != "ERROR") {
+				if (GameProfiles[app]["Gamma"] != gamma )
+			  		IniWrite,% GameProfiles[app]["Gamma"],% iniFile,% app,Gamma 
+				if (GameProfiles[app]["Vibrance"] != vibrance)
+					IniWrite,% GameProfiles[app]["Vibrance"],% iniFile,% app,Vibrance
+			}
+		}
+	}
+;	Write a specific app settings, if they differ from the ini
+	else {
+		IniRead, gamma,% iniFile,% app, Gamma
+		if (gamma != GameProfiles[whichApp]["Gamma"])
+			IniWrite,% GameProfiles[whichApp]["Gamma"],% iniFile,% whichApp,Gamma
+		IniRead, vibrance,% iniFile,% app, Vibrance
+		if (vibrance != GameProfiles[whichApp]["Vibrance"])
+			IniWrite,% GameProfiles[whichApp]["Vibrance"],% iniFile,% whichApp,Vibrance
 	}
 }
 
@@ -1514,6 +1587,107 @@ Update_Startup_Shortcut() {
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * 
 */
 
+Enable_Hotkeys() {
+	;	Enable the hotkeys, based on its global VALUE_ content
+	global ProgramSettings, ProgramValues, ProgramHotkeys
+
+	ProgramHotkeys := {}
+	programName := ProgramValues.Name, iniFilePath := ProgramValues.Ini_File
+
+	for hotkeyName, boundKey in ProgramSettings.HOTKEYS {
+		finalHotkey := ""
+		modCTRL 	:= ProgramSettings.HOTKEYS_MODIFIERS[hotkeyName "CTRL"]
+		modALT 		:= ProgramSettings.HOTKEYS_MODIFIERS[hotkeyName "ALT"]
+		modSHIFT 	:= ProgramSettings.HOTKEYS_MODIFIERS[hotkeyName "SHIFT"]
+		modWIN 		:= ProgramSettings.HOTKEYS_MODIFIERS[hotkeyName "WIN"]
+
+		if (boundKey != "") {
+			finalHotkey .= (modCTRL)?("^"):("")
+			finalHotkey .= (modALT)?("!"):("")
+			finalHotkey .= (modSHIFT)?("+"):("")
+			finalHotkey .= (modWIN)?("#"):("")
+			finalHotkey .= boundKey
+
+			ProgramHotkeys[hotkeyName] := finalHotkey
+			Hotkey,% finalHotkey, Hotkeys_Handler, On
+		}
+	}
+}
+
+
+Hotkeys_Handler() {
+	global ProgramHotkeys, ProgramSettings, GameProfiles, GameList
+	static gamma, vibrance, activeEXE, prev_activeEXE
+
+	for hotkeyName, boundKey in ProgramHotkeys {
+		for compare_hotkeyName, compare_boundKey in ProgramHotkeys {
+			if (hotkeyName != compare_hotkeyName && boundKey = A_ThisHotkey) {
+				if hotkeyName not in %actions%
+					actions .= hotkeyName ","
+			}
+		}
+	}
+	StringTrimRight, actions, actions, 1 ; Remove last comma
+
+	WinGet, activeEXE, ProcessName, A
+	if (activeEXE != prev_activeEXE) {
+		thisAppGamma := GameProfiles[activeEXE]["Gamma"], thisAppVibrance := GameProfiles[activeEXE]["Vibrance"]
+		gammaLastNum := SubStr(thisAppGamma, 0, 1), vibranceLastNum := SubStr(thisAppVibrance, 0, 1)
+		if (gammaLastNum != 5)
+			thisAppGamma := thisAppGamma-gammaLastNum+5
+		if (vibranceLastNum != 5)
+			thisAppVibrance := thisAppVibrance-vibranceLastNum+5
+
+		gamma := (thisAppGamma)?(thisAppGamma):(ProgramSettings.DEFAULT.Gamma)
+		vibrance := (thisAppVibrance)?(thisAppVibrance):(ProgramSettings.DEFAULT.Vibrance)
+	}
+
+	currentMon := GetMonitorIndexFromWindow(), currentMon--
+	if actions contains GammaPlus
+	{
+		gamma := (IsBetween(gamma+5, 30, 280))?(gamma+5):(gamma)
+		NVIDIA_Set_Settings(gamma, "prev", currentMon, 0, 1)
+	}
+	if actions contains GammaMinus
+	{
+		gamma := (IsBetween(gamma-5, 30, 280))?(gamma-5):(gamma)
+		NVIDIA_Set_Settings(gamma, "prev", currentMon, 0, 1)
+	}
+
+	if actions contains VibrancePlus
+	{
+		vibrance := (IsBetween(vibrance+5, 0, 100))?(vibrance+5):(vibrance)
+		NVIDIA_Set_Settings("prev", vibrance, currentMon, 0, 1)
+	}
+	if actions contains VibranceMinus
+	{
+		vibrance := (IsBetween(vibrance-5, 0, 100))?(vibrance-5):(vibrance)
+		NVIDIA_Set_Settings("prev", vibrance, currentMon, 0, 1)
+	}
+	if actions contains TriggerAndSave
+	{
+		WinGet, winExe, ProcessName, A
+		Set_ThisApp_Settings(winExe,1)
+		Save_Temporary_GameProfiles(winExe)
+	}
+
+	if !GameProfiles[activeEXE]
+		GameProfiles[activeEXE] := {}
+	GameProfiles[activeEXE]["Gamma"] := gamma, GameProfiles[activeEXE]["Vibrance"] := vibrance
+	if activeEXE not in %GameList%
+		GameList .= "," activeEXE
+
+	prev_activeEXE := activeEXE
+}
+
+Disable_Hotkeys() {
+	;	Enable the hotkeys, based on its global VALUE_ content
+	global ProgramSettings, ProgramValues, ProgramHotkeys
+
+	for hotkeyName, boundKey in ProgramHotkeys {
+		try Hotkey,% boundKey, Hotkeys_Handler, Off
+	}
+}
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * 
  *			LOGS FILE																*
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * 
@@ -1758,7 +1932,6 @@ Tray_Notifications_Show(title, msg, params="") {
 		index := SubStr(creationOrder,1,1)
 		StringTrimLeft, creationOrder, creationOrder, 2
 		creationOrder .= index ","
-		tooltip % creationOrder
 	}
 	; Make sure the list doesn't go beyond 10 chars (5 number and 5 comma)
 	len := StrLen(creationOrder)
@@ -1795,14 +1968,10 @@ Tray_Notifications_Show(title, msg, params="") {
 	Gui, TrayNotification%index%:Add, Text,% "xp" " yp+25" " w" guiWidth-40 " BackgroundTrans ca5a5a5",% msg
 	GuiControl, TrayNotification%index%:Move,% hIcon,% "y" (guiHeight/2) - (24/2)
 
-	Gui, TrayNotification%index%:+LastFound
-	WinSet, Transparent, 255
-
 	showX := MonitorWorkAreaRight-guiWidth-10
 	showY := MonitorWorkAreaBottom-guiHeight-10
 	showW := guiWidth, showH := guiHeight
 	Gui, TrayNotification%index%:Show,% "x" showX " y" showY " w" showW " h" showH " NoActivate"
-
 
 	Loop 5 {
 		if (A_Index != index ) {
@@ -1823,7 +1992,7 @@ Tray_Notifications_Show(title, msg, params="") {
 	Gui_TrayNotification_Fade_1:
 		ret1 := Tray_Notifications_Fade(1)
 		if (ret1) {
-			SetTimer, %A_ThisLabel%, -100
+			SetTimer, %A_ThisLabel%, -80
 		}
 		else {
 			creationOrder := Tray_Notifications_Adjust(1, creationOrder)
@@ -1833,7 +2002,7 @@ Tray_Notifications_Show(title, msg, params="") {
 	Gui_TrayNotification_Fade_2:
 		ret2 := Tray_Notifications_Fade(2)
 		if (ret2) {
-			SetTimer, %A_ThisLabel%, -100
+			SetTimer, %A_ThisLabel%, -80
 		}
 		else {
 			creationOrder := Tray_Notifications_Adjust(2, creationOrder)
@@ -1843,7 +2012,7 @@ Tray_Notifications_Show(title, msg, params="") {
 	Gui_TrayNotification_Fade_3:
 		ret3 := Tray_Notifications_Fade(3)
 		if (ret3) {
-			SetTimer, %A_ThisLabel%, -100
+			SetTimer, %A_ThisLabel%, -80
 		}
 		else {
 			creationOrder := Tray_Notifications_Adjust(3, creationOrder)
@@ -1853,7 +2022,7 @@ Tray_Notifications_Show(title, msg, params="") {
 	Gui_TrayNotification_Fade_4:
 		ret4 := Tray_Notifications_Fade(4)
 		if (ret4) {
-			SetTimer, %A_ThisLabel%, -100
+			SetTimer, %A_ThisLabel%, -80
 		}
 		else {
 			creationOrder := Tray_Notifications_Adjust(4, creationOrder)
@@ -1863,7 +2032,7 @@ Tray_Notifications_Show(title, msg, params="") {
 	Gui_TrayNotification_Fade_5:
 		ret5 := Tray_Notifications_Fade(5)
 		if (ret5) {
-			SetTimer, %A_ThisLabel%, -100
+			SetTimer, %A_ThisLabel%, -80
 		}
 		else {
 			creationOrder := Tray_Notifications_Adjust(5, creationOrder)
@@ -1894,7 +2063,8 @@ Tray_Notifications_Fade(index="", start=false) {
 	global TrayNotifications_Handles
 
 	if (start) {
-		transparency%index% := 255
+		transparency%index% := 230 ; Set initial transparency
+		; Return
 	}
 
 	transparency%index% := (0 > transparency%index%)?(0):(transparency%index%-20)
@@ -2030,6 +2200,13 @@ IsNum(str) {
 	if str is number
 		return true
 	return false
+}
+
+IsBetween(value, first, last) {
+   if value between %first% and %last%
+      return true
+   else
+      return false
 }
 
 Get_Control_Coords(guiName, ctrlHandler) {
