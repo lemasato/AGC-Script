@@ -68,7 +68,7 @@ Start_Script() {
 	global GameProfiles 				:= {}
 ;	main infos
 	ProgramValues.Name 					:= "Game Vivifier"
-	ProgramValues.Version 				:= "2.1.BETA_1"
+	ProgramValues.Version 				:= "2.1.BETA_2"
 	ProgramValues.Branch 				:= "dev"
 ;	folders
 	ProgramValues.Local_Folder 			:= A_MyDocuments "\AutoHotkey\" ProgramValues.Name
