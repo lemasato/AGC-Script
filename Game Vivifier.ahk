@@ -68,20 +68,22 @@ Start_Script() {
 	global GameProfiles 				:= {}
 ;	main infos
 	ProgramValues.Name 					:= "Game Vivifier"
-	ProgramValues.Version 				:= "2.1.BETA_2"
+	ProgramValues.Version 				:= "2.1.BETA_3"
 	ProgramValues.Branch 				:= "dev"
+	ProgramValues.Github_User 			:= "lemasato"
+	ProgramValues.GitHub_Repo 			:= "Game-Vivifier"
 ;	folders
 	ProgramValues.Local_Folder 			:= A_MyDocuments "\AutoHotkey\" ProgramValues.Name
 	ProgramValues.Logs_Folder 			:= ProgramValues.Local_Folder "\Logs"
 	ProgramValues.Others_Folder 		:= ProgramValues.Local_Folder "\Others"
 ;	updater link
-	ProgramValues.Updater_File 			:= "Game-Vivifier-Updater.exe"
+	ProgramValues.Updater_File 			:= A_ScriptDir "\Game-Vivifier-Updater.exe"
 	ProgramValues.Updater_Link 			:= "https://raw.githubusercontent.com/lemasato/Game-Vivifier/" ProgramValues.Branch "/Updater_v2.exe"
 ;	verion link / changelogs link
-	ProgramValues.Version_Link 			:= "https://raw.githubusercontent.com/lemasato/Game-Vivifier/" ProgramValues.Branch "/version.txt"
-	ProgramValues.Changelogs_Link 		:= "https://raw.githubusercontent.com/lemasato/Game-Vivifier/" ProgramValues.Branch "/changelogs.txt"
+	ProgramValues.Version_Link 			:= "https://raw.githubusercontent.com/lemasato/Game-Vivifier/" ProgramValues.Branch "/Version.txt"
+	ProgramValues.Changelogs_Link 		:= "https://raw.githubusercontent.com/lemasato/Game-Vivifier/" ProgramValues.Branch "/Changelogs.txt"
 ;	new version link
-	ProgramValues.NewVersion_File		:= "Game-Vivifier-NewVersion.exe"
+	ProgramValues.NewVersion_File		:= A_ScriptDir "\Game-Vivifier-NewVersion.exe"
 	ProgramValues.NewVersion_Link 		:= "https://raw.githubusercontent.com/lemasato/Game-Vivifier/" ProgramValues.Branch "/Game Vivifier.exe"
 ;	local files
 	ProgramValues.Ini_File 				:= ProgramValues.Local_Folder "\Preferences.ini"
@@ -126,7 +128,6 @@ Start_Script() {
 	Declare_GameProfiles_Settings(gameProfilesSettings)
 	Enable_Hotkeys()
 
-	Save_Temporary_GameProfiles("ALL")
 	Check_Update()
 	NVCPL_Be_Ready()
 	translations := Get_Translations("Tray_Notifications")
@@ -1215,20 +1216,17 @@ GUI_Select_Language() {
 Download_Updater() {
 	global ProgramValues
 
-	updaterLink 		:= ProgramValues.Updater_Link
-	newVersionLink 		:= ProgramValues.NewVersion_Link
-
 	IniWrite,% A_Now,% ProgramValues.Ini_File,PROGRAM,LastUpdate
-	UrlDownloadToFile,% updaterLink,% ProgramValues.Updater_File
+	UrlDownloadToFile,% ProgramValues.Updater_Link,% ProgramValues.Updater_File
 	Sleep 10
 	if (!ErrorLevel) {
 		Run,% ProgramValues.Updater_File 
+		; Run,% A_ScriptDir "\Updater_v2.ahk"
 		. " /Name=""" ProgramValues.Name  """"
-		. " /File_Name=""" ProgramValues.Name ".exe" """"
+		. " /File_Name=""" A_ScriptDir "\" ProgramValues.Name ".exe" """"
 		. " /Local_Folder=""" ProgramValues.Local_Folder """"
 		. " /Ini_File=""" ProgramValues.Ini_File """"
-		. " /NewVersion_Link=""" newVersionLink """"
-		ExitApp
+		. " /NewVersion_Link=""" ProgramValues.Version_Latest_Download """"
 	}
 	else {
 		translations := Get_Translations("Tray_Notifications")
@@ -1288,7 +1286,27 @@ Check_Update() {
 		Logs_Append("WinHttpRequest", {Obj:e})
 		Tray_Notifications_Show(translations.TITLE_ChangelogsDownloadFailed, translations.MSG_ChangelogsDownloadFailed)
 	}
-	
+
+; Releases API
+	Try {
+		Releases_WinHttpReq := ComObjCreate("WinHttp.WinHttpRequest.5.1")
+		Releases_WinHttpReq.SetTimeouts("10000", "10000", "10000", "10000")
+
+		Releases_WinHttpReq.Open("GET", "https://api.github.com/repos/" ProgramValues.Github_User "/" ProgramValues.GitHub_Repo "/releases?page=1", true)
+		Releases_WinHttpReq.Send()
+		Releases_WinHttpReq.WaitForResponse(10)
+
+		releasesJSON := Releases_WinHttpReq.ResponseText
+		parsedReleases := JSON.Load(releasesJSON)
+		latestReleaseTag := parsedReleases[1]["tag_name"]
+		latestReleaseDownload := parsedReleases[1]["assets"][1]["browser_download_url"]
+	}
+	Catch e {
+		Logs_Append("WinHttpRequest", {Obj:e})
+		Tray_Notifications_Show(translations.TITLE_ReleasesAPIFailed, translations.MSG_ReleasesAPIFailed)
+	}
+
+/*
 ;	Version.txt on master branch
 	Try {
 		Version_WinHttpReq := ComObjCreate("WinHttp.WinHttpRequest.5.1")
@@ -1310,14 +1328,15 @@ Check_Update() {
 		Logs_Append("WinHttpRequest", {Obj:e})
 		Tray_Notifications_Show(translations.TITLE_VersionFileDownloadFailed, translations.MSG_VersionFileDownloadFailed)
 	}
-
+*/
 ;	Set version IDs
-	latestStableVersion 	:= (versionOnline)?(versionOnline):("ERROR")
-	latestStableVersion = %latestStableVersion%
+	; latestStableVersion 	:= (versionOnline)?(versionOnline):("ERROR")
+	; latestStableVersion = %latestStableVersion%
 
-	ProgramValues.Version_Latest 		:= latestStableVersion
-	onlineVersionAvailable				:= ProgramValues.Version_Latest
-	ProgramValues.Version_Online 		:= ProgramValues.Version_Latest
+	ProgramValues.Version_Latest 			:= latestReleaseTag
+	ProgramValues.Version_Online 			:= latestReleaseTag
+	ProgramValues.Version_Latest_Download 	:= latestReleaseDownload
+	latestStableVersion 					:= latestReleaseTag
 
 ;	Set new version number and notify about update
 	isUpdateAvailable := (latestStableVersion != "ERROR" && latestStableVersion != currentVersion)?(1):(0)
@@ -1328,12 +1347,12 @@ Check_Update() {
 			timeDif := A_Now
 			EnvSub, timeDif,% lastTimeUpdated, Seconds
 			if (timeDif > 61 || !timeDif) { ; !timeDif means var was not in YYYYMMDDHH24MISS format 
-				Tray_Notifications_Show(onlineVersionAvailable . translations.TITLE_VersionAvailable, translations.MSG_VersionAvailable_AutoUpdate)
+				Tray_Notifications_Show(ProgramValues.Version_Online . translations.TITLE_VersionAvailable, translations.MSG_VersionAvailable_AutoUpdate)
 				Download_Updater()
 			}
 		}
 		else {
-			Tray_Notifications_Show(onlineVersionAvailable translations.TITLE_VersionAvailable, translations.MSG_VersionAvailable, {Is_Update:1, Fade_Timer:20000, Is_Important:1})
+			Tray_Notifications_Show(ProgramValues.Version_Online translations.TITLE_VersionAvailable, translations.MSG_VersionAvailable, {Is_Update:1, Fade_Timer:20000, Is_Important:1})
 		}
 	}
 	SetTimer, Check_Update, -1800000
@@ -1596,6 +1615,7 @@ Extract_Assets() {
 
 	FileInstall, Resources\Others\icon.ico,% ProgramValues.Others_Folder "\icon.ico", 1
 	FileInstall, Resources\Others\DonatePaypal.png,% ProgramValues.Others_Folder "\DonatePaypal.png", 1
+	FileInstall, Resources\Translations.json,% ProgramValues.Local_Folder "\Translations.json", 1
 }
 
 Update_Startup_Shortcut() {
