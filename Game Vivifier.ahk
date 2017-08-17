@@ -39,14 +39,18 @@ Menu,Tray,NoStandard
 Menu,Tray,Add,Close,Exit_Func
 
 ;___Window Switch Detect___;
-Gui +LastFound 
-Hwnd := WinExist()
-DllCall( "RegisterShellHookWindow", UInt,Hwnd )
-MsgNum := DllCall( "RegisterWindowMessage", Str,"SHELLHOOK" )
-OnMessage( MsgNum, "ShellMessage" )
 
+ShellMessage_Toggle(1)
 Start_Script()
 Return
+
+ShellMessage_Toggle(state) {
+	Gui +LastFound 
+	Hwnd := WinExist()
+	DllCall( "RegisterShellHookWindow", UInt,Hwnd )
+	MsgNum := DllCall( "RegisterWindowMessage", Str,"SHELLHOOK" )
+	OnMessage( MsgNum, "ShellMessage", state)
+}
 
 Start_Script() {
 /*
@@ -179,7 +183,7 @@ NVCPL_Be_Ready() {
 ;	Finally run again
 	NVCPL_Run()
 	NVCPL_Trigger_Control("Adjust_Desktop")
-	NVCPL_Trigger_Control("Select_Monitor", 0)
+	NVCPL_Trigger_Control("Select_Monitor", {Monitor:0,Force:1})
 	NVCPL_Trigger_Control("Use_NVIDIA_Settings")
 ;	And hide the window
 	WinHide,% "ahk_id " NVIDIA_Values.Handler
@@ -393,13 +397,20 @@ NVCPL_Trigger_Control(ctrlName, params="") {
 
 		monDiff := monitorID - prev_monitorID
 		whichArrow := (monDiff > 0)?("Right"):("Left")
+
 		if (whichArrow = "Left") {
 			StringTrimLeft, monDiff, monDiff, 1 ; Remove the minus before the number
 		}
-		if (monDiff) {
+
+		if (monDiff || params.Force) {
 			if (!isMonitorUsingNVIDIA[monitorID])
 				ControlClick,% _selectMonitor,% "ahk_id " _nvHandler
-			ControlSend,% _selectMonitor,{Blind}{%whichArrow% %monDiff%},% "ahk_id " _nvHandler ; Select monitor
+			if (params.Force) {
+				SysGet, MonitorCount, MonitorCount
+				monDiff 	:= MonitorCount, whichArrow := "Left"
+				isForce 	:= "{Right " monitorID "}"
+			}
+			ControlSend,% _selectMonitor,{Blind}{%whichArrow% %monDiff%}%isForce%,% "ahk_id " _nvHandler ; Select monitor
 			if (!isMonitorUsingNVIDIA[monitorID]) {
 				NVCPL_Trigger_Control("Use_NVIDIA_Settings")
 				isMonitorUsingNVIDIA[monitorID] := true
@@ -2063,7 +2074,7 @@ Tray_Notifications_Fade(index="", start=false) {
 	global TrayNotifications_Handles
 
 	if (start) {
-		transparency%index% := 230 ; Set initial transparency
+		transparency%index% := 240 ; Set initial transparency
 		; Return
 	}
 
@@ -2344,22 +2355,31 @@ GetMonitorIndexFromWindow(windowHandle="") {
 Reload_Func() {
 	global NVIDIA_Values
 
-	Process, Close,% NVIDIA_Values.PID
-	Process, Close, nvcplui.exe
 	Sleep 10
 	Reload
 	Sleep 10000
 }
 
 Exit_Func(ExitReason, ExitCode) {
-	global NVIDIA_Values
+	global NVIDIA_Values, ProgramSettings
+	static closing
 
-	if ExitReason not in Reload
-	{
-		Process, Close,% NVIDIA_Values.PID
-		Process, Close, nvcplui.exe
-		ExitApp
+	if (closing) {
+		closing := false
+		Return
 	}
+
+	ShellMessage_Toggle(0)
+	SysGet, MonitorCount, MonitorCount
+	Loop %MonitorCount% {
+		NVIDIA_Set_Settings(ProgramSettings.DEFAULT.Gamma, ProgramSettings.DEFAULT.Vibrance, A_Index, 0, 1)
+		Sleep 100
+	}
+	Process, Close,% NVIDIA_Values.PID
+	Process, Close, nvcplui.exe
+
+	closing := true
+	ExitApp
 }
 
 #Include %A_ScriptDir%\Resources\AHK
