@@ -1,39 +1,8 @@
-/* 
-	Game Vivifier by lemasato
+/* 	Game Vivifier by lemasato
 	Allows NVIDIA users to have custom gamma/vibrance profiles for their applications
 
 	https://autohotkey.com/boards/viewtopic.php?t=9455
 	https://github.com/lemasato/Game-Vivifier
-
-	What to test:
-		- Updating:
-		x	Upgrading from 2.0.13. See if the process goes well.
-		x	Import of .ini settings. Delete older unused settings.
-	
-		- Auto detection:
-		x	See if the control can be automatically retrieven
-		x	Simulate a failure, to make the user choose the control manually
-		x	Change the .ini value for the control and the control text.
-		x		See if changing Static2 to Static4 successfully re-detect Static2 on launch
-		x		Change "Régler les paramètres" text to something else, see if the difference is detected
-
-		- Settings:
-		x	Add an app to the settings. Play around with the Settings.
-		x	Try out each hotkey individually then simultaneously
-
-		- About:
-		x	Upon upgrading, see if the GUI is shown
-
-		- Hotkeys:
-		x	Not added app: Change its settings, play around and see if they are kept.
-		x	Press the Trigger/Save hotkey, see if the temp settings from the current app are saved
-		x	Added app: Change its settings, open the Settings to see if the variables are correct
-		x	Use the function used to save all settings, see if the temp settings from existing app are saved
-
-	What to fix so far:
-		x 	Say you have two chrome.exe, one on each monitor. Switching back and forth will NOT enable the app settings.
-		x	When switching from a window to another, there is a small flashing occuring.
-				Could be solved by comparing value with default, and only apply if different
 */
 
 #Warn LocalSameAsGlobal, StdOut
@@ -70,7 +39,7 @@ Start_Script() {
 	global GameProfiles 				:= {}
 ;	main infos
 	ProgramValues.Name 					:= "Game Vivifier"
-	ProgramValues.Version 				:= "2.1.BETA_3"
+	ProgramValues.Version 				:= "2.1.BETA_4"
 	ProgramValues.Branch 				:= "dev"
 	ProgramValues.Github_User 			:= "lemasato"
 	ProgramValues.GitHub_Repo 			:= "Game-Vivifier"
