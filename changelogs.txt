@@ -1,6 +1,30 @@
 \\
 --2.1--
-Completly enhanced the tool.
+Re-written from scratch, for a cleaner approach.
+Most of these changes are code-wise, but here are the most important changes!:
+
+Features:
+- Hotkeys.
+Gamma: Increase and Reduce.
+Vibrance: Increase and Reduce.
+Special: Trigger/Save.
+
+The Gamma and Vibrance hotkeys allow you to control the currently active application's settings.
+If the application does not have a profile (tray menu > Settings), these settings will be lost upon reload/close.
+
+Pressing the Trigger/Save hotkey on an application that does not have a profile will automatically create one for it and save its settings.
+This hotkey also allows you to force loading the current application's profile.
+
+The same hotkey can be used for multiple actions.
+
+- Tray notifications
+The application now use custom tray notifications, allowing a better look.
+In case a new version is available, it will be shown through a notification.
+
+Changes:
+- Removed the "Monitor ID" setting. 
+The Monitor ID is now automatically retrieven, based on the application's window position.
+- You can see the latest version and version specific changelogs from the "About?" tray menu.
 //
 
 \\

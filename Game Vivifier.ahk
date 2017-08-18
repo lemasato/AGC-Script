@@ -39,8 +39,8 @@ Start_Script() {
 	global GameProfiles 				:= {}
 ;	main infos
 	ProgramValues.Name 					:= "Game Vivifier"
-	ProgramValues.Version 				:= "2.1.BETA_4"
-	ProgramValues.Branch 				:= "dev"
+	ProgramValues.Version 				:= "2.1"
+	ProgramValues.Branch 				:= "master"
 	ProgramValues.Github_User 			:= "lemasato"
 	ProgramValues.GitHub_Repo 			:= "Game-Vivifier"
 ;	folders
@@ -107,6 +107,7 @@ Start_Script() {
 	NVCPL_Be_Ready()
 	translations := Get_Translations("Tray_Notifications")
 	Tray_Notifications_Show(ProgramValues.Name " v" ProgramValues.Version, translations.MSG_Start), translations := ""
+	Logs_Append("START", localSettings)
 
 	SetTimer, Save_Temporary_GameProfiles, 600000
 	; Gui_Settings()
@@ -544,6 +545,7 @@ Gui_Settings() {
 	translations := Get_Translations(A_ThisFunc)
 	labelPrefix := "Gui_Settings_"
 	profileBoxWidth := 250, profileBoxHeight := 300
+	detectHiddenWin := false
 
 	Gui, Settings:Destroy
 	Gui, Settings:New, +AlwaysOnTop +SysMenu -MinimizeBox -MaximizeBox +OwnDialogs +Label%labelPrefix% +Delimiter`n hwndhGuiSettings,% "Settings"
@@ -949,6 +951,8 @@ Gui_About(params="") {
 	global GuiAbout_Controls := {}
 	global GuiAbout_Submit := {}
 
+	Check_Update()
+
 	iniFilePath := ProgramValues.Ini_File, programName := ProgramValues.Name
 	verCurrent := ProgramValues.Version, verLatest := ProgramValues.Version_Latest
 	isUpdateAvailable := ProgramValues.Update_Available, onlineVersionAvailable := ProgramValues.Version_Online
@@ -1235,12 +1239,12 @@ Check_Update() {
 			try 
 				FileRead, changelogsLocal,% ProgramValues.Changelogs_File
 			catch e
-				Logs_Append("DEBUG", {String:"[WARNING]: Failed to read file """ ProgramValues.Changelogs_File """. Does the file exist?"})
+				Logs_Append("DEBUG_STRING", {String:"[WARNING]: Failed to read file """ ProgramValues.Changelogs_File """. Does the file exist?"})
 			if ( changelogsLocal != changelogsOnline ) {
 				try
 					FileDelete, % ProgramValues.Changelogs_File
 				catch e
-					Logs_Append("DEBUG", {String:"[WARNING]: Failed to delete file """ ProgramValues.Changelogs_File """. Does the file exist?"})
+					Logs_Append("DEBUG_STRING", {String:"[WARNING]: Failed to delete file """ ProgramValues.Changelogs_File """. Does the file exist?"})
 				UrlDownloadToFile, % changeslogsLink,% ProgramValues.Changelogs_File
 			}
 		}
@@ -1367,7 +1371,7 @@ Declare_GameProfiles_Settings(settings) {
 				GameProfiles[_section][iniKey] := value
 			}
 			else { ; Invalid value
-				Logs_Append("DEBUG", {String:"[WARNING] Unable to declare setting " _section "." iniKey " with value: " value "."})
+				Logs_Append("DEBUG_STRING", {String:"[WARNING] Unable to declare setting " _section "." iniKey " with value: " value "."})
 			}
 		}
 	}
@@ -1716,7 +1720,7 @@ Disable_Hotkeys() {
 */
 
 Logs_Append(funcName, params) {
-	global ProgramValues, ProgramSettings
+	global ProgramValues, ProgramSettings, GameProfiles
 
 	programName := ProgramValues.Name
 	programVersion := ProgramValues.Version
@@ -1728,6 +1732,13 @@ Logs_Append(funcName, params) {
 
 		OSbits := (A_Is64bitOS)?("64bits"):("32bits")
 		IniRead, programSectionContent,% iniFilePath,PROGRAM
+
+		gameSettingsContent := ""
+		for key, element in GameProfiles {
+			if (gameSettingsContent)
+				gameSettingsContent .= "`n"
+			gameSettingsContent .= key "`nGamma: " GameProfiles[key]["Gamma"] "`nVibrance: " GameProfiles[key]["Vibrance"] "`n"
+		}
 
 		paramsKeysContent := ""
 		for key, element in params.KEYS {
@@ -1756,7 +1767,7 @@ Logs_Append(funcName, params) {
 						. programSectionContent "`n"
 						. "`n"
 						. ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>`n"
-						. ">>> GAME SETTINGS `n"
+						. ">>> GAME PROFILES `n"
 						. ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>`n"
 						. gameSettingsContent 
 						. "`n"
@@ -2383,6 +2394,7 @@ Exit_Func(ExitReason, ExitCode) {
 		Return
 	}
 
+	closing := true
 	SysGet, MonitorCount, MonitorCount
 	Loop %MonitorCount% {
 		NVIDIA_Set_Settings(ProgramSettings.DEFAULT.Gamma, ProgramSettings.DEFAULT.Vibrance, A_Index, 0, 1)
@@ -2390,8 +2402,6 @@ Exit_Func(ExitReason, ExitCode) {
 	}
 	Process, Close,% NVIDIA_Values.PID
 	Process, Close, nvcplui.exe
-
-	closing := true
 	ExitApp
 }
 
