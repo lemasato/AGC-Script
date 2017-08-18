@@ -51,16 +51,22 @@ Start_Script() {
 	ProgramValues.Updater_File 			:= A_ScriptDir "\Game-Vivifier-Updater.exe"
 	ProgramValues.Updater_Link 			:= "https://raw.githubusercontent.com/lemasato/Game-Vivifier/" ProgramValues.Branch "/Updater_v2.exe"
 ;	verion link / changelogs link
-	ProgramValues.Version_Link 			:= "https://raw.githubusercontent.com/lemasato/Game-Vivifier/" ProgramValues.Branch "/Version.txt"
-	ProgramValues.Changelogs_Link 		:= "https://raw.githubusercontent.com/lemasato/Game-Vivifier/" ProgramValues.Branch "/Changelogs.txt"
+	ProgramValues.Version_Link 			:= "https://raw.githubusercontent.com/lemasato/Game-Vivifier/" ProgramValues.Branch "/version.txt"
+	ProgramValues.Changelogs_Link 		:= "https://raw.githubusercontent.com/lemasato/Game-Vivifier/" ProgramValues.Branch "/changelogs.txt"
 ;	new version link
 	ProgramValues.NewVersion_File		:= A_ScriptDir "\Game-Vivifier-NewVersion.exe"
 	ProgramValues.NewVersion_Link 		:= "https://raw.githubusercontent.com/lemasato/Game-Vivifier/" ProgramValues.Branch "/Game Vivifier.exe"
 ;	local files
-	ProgramValues.Ini_File 				:= ProgramValues.Local_Folder "\Preferences.ini"
-	ProgramValues.Translations_File		:= ProgramValues.Local_Folder "\Translations.ini"
-	ProgramValues.Changelogs_File 		:= ProgramValues.Logs_Folder "\Changelogs.txt"
-	ProgramValues.Logs_File				:= ProgramValues.Logs_Folder "\DebugLogs.txt"
+	ProgramValues.Ini_File 					:= ProgramValues.Local_Folder "\Preferences.ini"
+	ProgramValues.Translations_File			:= ProgramValues.Local_Folder "\Translations.ini"
+	ProgramValues.Changelogs_File 			:= ProgramValues.Logs_Folder "\Changelogs.txt"
+	ProgramValues.Logs_File					:= ProgramValues.Logs_Folder "\DebugLogs.txt"	
+
+;	special links
+	ProgramValues.Link_GitHub				:= "https://github.com/lemasato/Game-Vivifier"
+	ProgramValues.Link_AHK					:= "https://autohotkey.com/boards/viewtopic.php?t=9455"
+	ProgramValues.Link_NVIDIA_Screenshot	:= "https://raw.githubusercontent.com/lemasato/Game-Vivifier/" ProgramValues.Branch "/Screenshots/Nvidia Control Panel.png"
+	ProgramValues.Link_GitHub_Wiki 			:= "https://github.com/lemasato/Game-Vivifier/wiki"
 
 	global ExcludedProcesses 			:= "explorer.exe,autohotkey.exe,nvcplui.exe," A_ScriptName
 
@@ -883,12 +889,7 @@ Gui_Settings() {
 	Gui_Settings_Help:
 /*		Show the help tooltip
 */
-		static showToolTip
-		showToolTip := !showToolTip
-
-		if (showToolTip)
-			MsgBox, ,% ProgramValues.Name,% translations.TEXT_ShowHelp
-		else Tooltip
+		Run,% ProgramValues.Link_GitHub_Wiki "/Usage"
 	Return
 
 	Gui_Settings_Submit:
@@ -992,6 +993,8 @@ Gui_About(params="") {
 	Gui_Add({_Type:"Link",_Content:"<a href="""">GitHub</a>",_Pos:"x+5",_Label:"Link_GitHub"})
 	Gui_Add({_Type:"Text",_Content:"-",_Pos:"x+5"})
 	Gui_Add({_Type:"Link",_Content:"<a href="""">AHK Forums</a>",_Pos:"x+5",_Label:"Link_AHK"})
+	Gui_Add({_Type:"Text",_Content:"-",_Pos:"x+5"})
+	Gui_Add({_Type:"Link",_Content:"<a href="""">GitHub Wiki</a>",_Pos:"x+5",_Label:"Link_Github_Wiki"})
 	Gui_Add({_Type:"Picture",_Content:paypalPicture,_Pos:"x435 yp-7",_Label:"Link_Paypal"})
 	Gui, About:Show
 	Return
@@ -1014,18 +1017,6 @@ Gui_About(params="") {
 		Gui, About:Show, AutoSize
 	return
 
-	Github_Link:
-		Run,% ProgramValues.GitHub
-	Return
-
-	GGG_Link:
-		Run,% ProgramValues.GGG
-	Return
-
-	Paypal_Link:
-		Run,% ProgramValues.Paypal
-	Return
-
 	Gui_About_Update:
 		Download_Updater()
 	Return
@@ -1035,20 +1026,6 @@ Gui_About(params="") {
 
 		IniWrite,% GuiAbout_Submit.CB_AutoUpdate,% iniFilePath,PROGRAM,Auto_Update
 		Gui, About:Destroy
-	Return
-
-	Link_GitHub:
-		Run,% ProgramValues.Link_GitHub
-	Return
-	Link_AHK:
-		Run,% ProgramValues.Link_AHK
-	Return
-	Link_Paypal:
-		Run,% ProgramValues.Paypal
-	Return
-
-	Link_NVIDIA_Screenshot:
-		Run,% "https://raw.githubusercontent.com/lemasato/Game-Vivifier/" ProgramValues.Branch "/Screenshots/Nvidia Control Panel.png"
 	Return
 }
 
@@ -1342,7 +1319,7 @@ Check_Update() {
 			Tray_Notifications_Show(ProgramValues.Version_Online translations.TITLE_VersionAvailable, translations.MSG_VersionAvailable, {Is_Update:1, Fade_Timer:20000, Is_Important:1})
 		}
 	}
-	SetTimer, Check_Update, -1800000
+	SetTimer, Check_Update, -10800000 ; 3 hours
 }
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * 
@@ -1943,6 +1920,11 @@ Tray_Notifications_Show(title, msg, params="") {
 	global SkinAssets, ProgramSettings, ProgramValues
 	global TrayNotifications_Handles
 
+;	Don't show on fullscreen app. Cause an alt-tab on W10. Can't say for other OS.
+	isActiveFullscreen := Is_Window_FullScreen()
+	if (isActiveFullscreen)
+		Return
+
 ;	Monitor infos
 	local MonitorCount, MonitorPrimary, MonitorWorkArea
 	local MonitorWorkAreaTop, MonitorWorkAreaBottom, MonitorWorkAreaLeft, MonitorWorkAreaRight
@@ -2412,6 +2394,22 @@ Exit_Func(ExitReason, ExitCode) {
 	closing := true
 	ExitApp
 }
+
+Link_GitHub:
+	Run,% ProgramValues.Link_GitHub
+Return
+Link_GitHub_Wiki:
+	Run,% ProgramValues.Link_Github_Wiki
+Return
+Link_AHK:
+	Run,% ProgramValues.Link_AHK
+Return
+Link_Paypal:
+	Run,% ProgramValues.Link_Github_Wiki "/Support"
+Return
+Link_NVIDIA_Screenshot:
+	Run, ProgramValues.Link_NVIDIA_Screenshot
+Return
 
 #Include %A_ScriptDir%\Resources\AHK
 #Include JSON.ahk
