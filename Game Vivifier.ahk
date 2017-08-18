@@ -7,15 +7,15 @@
 
 	What to test:
 		- Updating:
-			Upgrading from 2.0.13. See if the process goes well.
-			Import of .ini settings. Delete older unused settings.
+		x	Upgrading from 2.0.13. See if the process goes well.
+		x	Import of .ini settings. Delete older unused settings.
 	
 		- Auto detection:
-			See if the control can be automatically retrieven
-			Simulate a failure, to make the user choose the control manuall
-			Change the .ini value for the control and the control text.
-				See if changing Static2 to Static4 successfully re-detect Static2 on launch
-				Change "Régler les paramètres" text to something else, see if the difference is detected
+		x	See if the control can be automatically retrieven
+		x	Simulate a failure, to make the user choose the control manually
+		x	Change the .ini value for the control and the control text.
+		x		See if changing Static2 to Static4 successfully re-detect Static2 on launch
+		x		Change "Régler les paramètres" text to something else, see if the difference is detected
 
 		- Settings:
 		x	Add an app to the settings. Play around with the Settings.
@@ -31,7 +31,9 @@
 		x	Use the function used to save all settings, see if the temp settings from existing app are saved
 
 	What to fix so far:
-		Say you have two chrome.exe, one on each monitor. Switching back and forth will NOT enable the app settings.
+		x 	Say you have two chrome.exe, one on each monitor. Switching back and forth will NOT enable the app settings.
+		x	When switching from a window to another, there is a small flashing occuring.
+				Could be solved by comparing value with default, and only apply if different
 */
 
 #Warn LocalSameAsGlobal, StdOut
@@ -273,7 +275,7 @@ NVCPL_Run() {
 		}
 	}
 
-	; Run,% nvPath, , Min,nvPID
+	; Run,% nvPath, , ,nvPID
 	Run,% nvPath, , Min,nvPID
 	WinWait,% "ahk_pid " nvPID
 	WinGet, nvHandler, ID,% "ahk_pid " nvPID
@@ -466,6 +468,7 @@ NVIDIA_Set_Settings(gamma, vibrance, monitorID=0, isFullScreen=0, isHotkey=0) {
 	global NVIDIA_Set_Settings_FullScreen_HANDLE
 	static prev_gamma, prev_vibrance, prev_MonitorID
 	static _gamma, _vibrance, _monitorID, againIndex
+	static winEXE, prev_winEXE
 
 	hiddenWin := A_DetectHiddenWindows
 	DetectHiddenWindows, On
@@ -484,28 +487,42 @@ NVIDIA_Set_Settings(gamma, vibrance, monitorID=0, isFullScreen=0, isHotkey=0) {
 		Return
 	}
 
+	WinGet, winEXE, ProcessName, A
+	defaultGamma 		:= ProgramSettings.DEFAULT.Gamma
+	defaultVibrance 	:= ProgramSettings.DEFAULT.Vibrance
+
 	if (gamma="prev") {
-		gamma := (IsNum(prev_gamma))?(prev_gamma):(ProgramSettings.DEFAULT.Gamma)
+		gamma := (IsNum(prev_gamma))?(prev_gamma):(defaultGamma)
 	}
 	if (vibrance="prev") {
-		vibrance := (IsNum(prev_vibrance))?(prev_vibrance):(ProgramSettings.DEFAULT.Vibrance)
+		vibrance := (IsNum(prev_vibrance))?(prev_vibrance):(defaultVibrance)
 	}
 
+	isGammaDiff		 := (gamma != prev_gamma)?(true):(false)
+	isVibranceDiff	 := (vibrance != prev_vibrance)?(true):(false)
+	isAppDiff 		 := (winExe != prev_winEXE)?(true):(false)
+	idMonDiff 		 := (monitorID != prev_monitorID)?(true):(false)
+
+	wasPrevGammaNotDef 		:= (prev_gamma != defaultGamma)?(true):(false)
+	wasPrevVibranceNotDef 	:= (prev_vibrance != defaultVibrance)?(true):(false)
+
+	isCurrentGammaNotDef 		:= (gamma != defaultGamma)?(true):(false)
+	isCurrentVibranceNotDef 	:= (vibrance != defaultVibrance)?(true):(false)
+
 	; Reset previous monitor settings
-	if (prev_MonitorID != monitorID) {
-		defaultGamma 		:= ProgramSettings.DEFAULT.Gamma
-		defaultVibrance 	:= ProgramSettings.DEFAULT.Vibrance
-		if ( prev_gamma != defaultGamma && IsNum(defaultGamma)  ) 
+	if (idMonDiff) {
+		
+		if ( wasPrevGammaNotDef && IsNum(defaultGamma)  ) 
 			NVCPL_Trigger_Control("Gamma", {Gamma:defaultGamma, Monitor:prev_MonitorID})
-		if ( prev_vibrance != defaultVibrance && IsNum(defaultVibrance)  )
+		if ( wasPrevVibranceNotDef && IsNum(defaultVibrance)  )
 			NVCPL_Trigger_Control("Vibrance", {Vibrance:defaultVibrance, Monitor:prev_MonitorID})
 	}
-	if ( (prev_gamma != gamma) || (prev_vibrance != vibrance) || isHotkey || prev_MonitorID != monitorID ) {
+	if ( isGammaDiff || isVibranceDiff || isHotkey || (!isAppDiff && (isCurrentGammaNotDef || isCurrentVibranceNotDef)) ) {
 		NVCPL_Trigger_Control("Select_Monitor", {Monitor:monitorID})
-		if ( prev_gamma != gamma && IsNum(gamma) || isHotkey || prev_MonitorID != monitorID) {
+		if ( isGammaDiff && IsNum(gamma) || isHotkey || idMonDiff || (!isAppDiff && isCurrentGammaNotDef) ) {
 			NVCPL_Trigger_Control("Gamma", {Gamma:gamma, Monitor:monitorID})
 		}
-		if ( prev_vibrance != vibrance && IsNum(vibrance) || isHotkey || prev_MonitorID != monitorID)
+		if ( isVibranceDiff && IsNum(vibrance) || isHotkey || idMonDiff || (!isAppDiff && isCurrentVibranceNotDef) )
 			NVCPL_Trigger_Control("Vibrance", {Vibrance:vibrance, Monitor:monitorID})
 
 		; Fullscreen app tend to revert our settings, we wait a bit then re-apply them
@@ -517,7 +534,7 @@ NVIDIA_Set_Settings(gamma, vibrance, monitorID=0, isFullScreen=0, isHotkey=0) {
 		}
 	}
 
-	prev_gamma := gamma, prev_vibrance := vibrance, prev_MonitorID := monitorID
+	prev_gamma := gamma, prev_vibrance := vibrance, prev_MonitorID := monitorID, prev_winEXE := winEXE
 	DetectHiddenWindows, %hiddenWin%
 	Return
 
@@ -669,7 +686,7 @@ Gui_Settings() {
 	; Gui_Control("Settings", "ChooseString", GuiSettings_Controls["TAB_Hotkeys"], "Gamma")
 	GoSub Gui_Settings_RefreshWindows
 	GoSub Gui_Settings_RefreshSettings
-	Gui, Settings:Show, x-610 y0 NoActivate
+	Gui, Settings:Show
 	Return
 
 	Gui_Settings_LB_OnHotkeyTabSelect:
@@ -945,6 +962,7 @@ Gui_Settings() {
 		Declare_GameProfiles_Settings(gameProfilesSettings)
 
 		Enable_Hotkeys()
+		Create_Tray_Menu()
 
 		Gui, Settings:Destroy
 	Return
@@ -1006,7 +1024,7 @@ Gui_About(params="") {
 	Gui_Add({_Type:"Text",_Content:"-",_Pos:"x+5"})
 	Gui_Add({_Type:"Link",_Content:"<a href="""">AHK Forums</a>",_Pos:"x+5",_Label:"Link_AHK"})
 	Gui_Add({_Type:"Picture",_Content:paypalPicture,_Pos:"x435 yp-7",_Label:"Link_Paypal"})
-	Gui, About:Show, NoActivate x-600 y0
+	Gui, About:Show
 	Return
 
 	Gui_About_DDL_OnVersionChoose:
@@ -1095,6 +1113,7 @@ Gui_GetControl(ctrlName) {
 	Gui_Add({_Type:"Text",_Content:translations.TEXT_Contribute,_Pos:"xm y+20"})
 	Gui_Add({_Type:"Edit",_Pos:"xm w300",_Var:"EDIT_RetrievedText",_Opts:"ReadOnly"})
 	Gui, GetControl:Show
+	WinRestore, ahk_id %nvHandler%
 
 	SetTimer, Gui_GetControl_Refresh, 100
 	WinWait, ahk_id %hGuiGetControl%
@@ -1187,9 +1206,10 @@ GUI_Select_Language() {
 		StringTrimRight, lang, lang, 1
 
 ;		Set the language setting and reload GUI
+		if !(ProgramSettings.SETTINGS)
+			ProgramSettings.SETTINGS := {}
 		ProgramSettings.SETTINGS.Language := lang
 		GUI_Select_Language()
-		GuiControl, SelectLang:ChooseString,langListItem,% lang
 	return
 	
 	Gui_LangSelect_Apply:
@@ -1506,7 +1526,7 @@ Get_Local_Settings() {
 			IniWrite,% value,% iniFile,SETTINGS,% iniKey
 		}
 		if (iniKey = "Language" && value = "") {
-			GUI_Select_Language()
+			value := GUI_Select_Language()
 		}
 		settings.SETTINGS[iniKey] := value
 	}
@@ -1539,7 +1559,7 @@ Get_Local_Settings() {
 		; The hotkey itself
 		IniRead, value,% iniFile,HOTKEYs,% iniKey
 		if (value = "ERROR") {
-			value := """"""
+			value := ""
 			IniWrite,% value,% iniFile,HOTKEYS,% iniKey
 		}
 		settings.HOTKEYS[iniKey] := value
@@ -1860,7 +1880,7 @@ Get_Running_Apps(_detectHiddenWin=false, _excludedProcesses="", _separator="") {
 Create_Tray_Menu() {	
 /*		Create the tray menu
 */
-	global ProgramValues
+	global ProgramValues, NVIDIA_Values
 	static tranlations_Hide
 
 	translations := Get_Translations("Tray_Menu")
@@ -1885,14 +1905,17 @@ Create_Tray_Menu() {
 	return
 
 	Tray_Hide: 
-		if WinExist("ahk_exe nvcplui.exe") {
+		hiddenWin := A_DetectHiddenWindows
+		if WinExist("ahk_id " NVIDIA_Values.Handler) {
 			Menu, Tray, Check,% tranlations_Hide
-			WinHide ahk_id %nvHandler%
+			WinHide,% "ahk_id " NVIDIA_Values.Handler
 		}
 		else {
+			DetectHiddenWindows, On
 			Menu, Tray, UnCheck,% tranlations_Hide
-			WinShow, ahk_id %nvHandler%
+			WinShow,% "ahk_id " NVIDIA_Values.Handler
 		}
+		DetectHiddenWindows, %hiddenWin%
 	return
 }
 

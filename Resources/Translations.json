@@ -142,7 +142,7 @@
 			"TITLE_VersionAvailable" : " is available!",
 			"MSG_VersionAvailable" : "Left click on this notification to run the automatic download.`nRight click to dismiss it.",
 			"MSG_VersionAvailable_AutoUpdate" : "Auto-upadting is enabled. Downloading the updater...",
-			"MSG_Start" : "Right click on the tray icon then`n>> [Settings] to set up your profiles.`n>> [About?] to read patch notes.",
+			"MSG_Start" : "Right click on the tray icon then:`n>> [Settings] to set up your profiles.`n>> [About?] to read patch notes.",
 			"TITLE_ReleasesAPIFailed" : "Failed to reach GitHub Releases.",
 			"MSG_ReleasesAPIFailed" : "This will not interfer with the operations of the tool,`nbut updating will be temporarily unavailable."
 		},
@@ -156,7 +156,7 @@
 			"TITLE_VersionAvailable" : " est disponible!",
 			"MSG_VersionAvailable" : "Clic gauche sur cette notification pour lancer le téléchargeant automatique.`nClic droit pour la faire disparaître.",
 			"MSG_VersionAvailable_AutoUpdate" : "Mises à jour automatiques activées. Téléchargement de l'updater...",
-			"MSG_Start" : "Clic droit sur l'îcone puis`n>> [Paramètres] pour configurer vos profiles.`n>> [À Propos?] pour voir les patch notes.",
+			"MSG_Start" : "Clic droit sur l'îcone puis:`n>> [Paramètres] pour configurer vos profiles.`n>> [À Propos?] pour voir les patch notes.",
 			"TITLE_ReleasesAPIFailed" : "Impossible d'atteindre GitHub Releases",
 			"MSG_ReleasesAPIFailed" : "Ceci n'interférera pas avec les opérations de %programName%`nMais les mises à jour seront temporairement indisponibles."
 		}
