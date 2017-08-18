@@ -1941,7 +1941,7 @@ Tray_Notifications_Show(title, msg, params="") {
 */
 	static
 	global SkinAssets, ProgramSettings, ProgramValues
-	global TrayNotifications_Values, TrayNotifications_Handles
+	global TrayNotifications_Handles
 
 ;	Monitor infos
 	local MonitorCount, MonitorPrimary, MonitorWorkArea
@@ -1951,17 +1951,16 @@ Tray_Notifications_Show(title, msg, params="") {
 	SysGet, MonitorWorkArea, MonitorWorkArea,% MonitorPrimary
 
 	; Calculating GUI size, based on content
-	guiWidthMax := 350
+	titleWidthMax := 310, textWidthMax := 330
 	guiFontName := "Segoe UI", guiFontSize := "9", guiTitleFontSize := "10"
-	textSize := Get_Text_Control_Size(msg, guiFontName, guiFontSize, guiWidthMax)
+	titleSize := Get_Text_Control_Size(title, guiFontName, guiTitleFontSize, titleWidthMax)
+	textSize := Get_Text_Control_Size(msg, guiFontName, guiFontSize, textWidthMax)
+
 
 	; Declaring gui size
-	guiWidth 	:= textSize.W
-	guiHeight 	:= textSize.H
+	guiWidth 	:= 350
+	guiHeight 	:= (titleSize.H+5) + (textSize.H+20) ; 5=top margin, 20=title/msg margin
 	borderSize 	:= 1
-
-	; Fitting size
-	guiHeight += 50, guiWidth += 20 ; Fitting size
 	
 	; Get first avaialble notification to replace
 	index := 1
@@ -2010,12 +2009,11 @@ Tray_Notifications_Show(title, msg, params="") {
 	Gui, TrayNotification%index%:Add, Progress,% "x" 0 " y" guiHeight-borderSize " w" guiWidth " h" borderSize " Background484848" ; Bottom
 	Gui, TrayNotification%index%:Add, Text,% "x0 y0 w" guiWidth " h" guiHeight " BackgroundTrans g" _label,% ""
 
-	Gui, TrayNotification%index%:Add, Picture, x5 y5 w24 h24 hwndhIcon,% ProgramValues.Others_Folder "\icon.ico"
 	Gui, TrayNotification%index%:Font, S%guiTitleFontSize% Bold,% guiFontName
-	Gui, TrayNotification%index%:Add, Text,% "xp+35" " yp+5" " w" guiWidth-20 " BackgroundTrans cFFFFFF",% title
+	Gui, TrayNotification%index%:Add, Text,% "xm+35" " ym+9" " w" titleWidthMax " BackgroundTrans cFFFFFF",% title
 	Gui, TrayNotification%index%:Font, S%guiFontSize% Norm,% guiFontName
-	Gui, TrayNotification%index%:Add, Text,% "xp" " yp+25" " w" guiWidth-40 " BackgroundTrans ca5a5a5",% msg
-	GuiControl, TrayNotification%index%:Move,% hIcon,% "y" (guiHeight/2) - (24/2)
+	Gui, TrayNotification%index%:Add, Text,% "xm+10" " ym+35" " w" textWidthMax " BackgroundTrans ca5a5a5",% msg
+	Gui, TrayNotification%index%:Add, Picture, x5 y5 w24 h24 hwndhIcon,% ProgramValues.Others_Folder "\icon.ico"
 
 	showX := MonitorWorkAreaRight-guiWidth-10
 	showY := MonitorWorkAreaBottom-guiHeight-10
@@ -2032,8 +2030,6 @@ Tray_Notifications_Show(title, msg, params="") {
 		}
 	}
 
-	TrayNotifications_Values := {"New":1, "Index":index} ; New notification, reset transparency from fade
-
 	Tray_Notifications_Fade(index, true)
 	SetTimer, Gui_TrayNotification_Fade_%index%, -%fadeTimer%
 	Return
@@ -2041,7 +2037,7 @@ Tray_Notifications_Show(title, msg, params="") {
 	Gui_TrayNotification_Fade_1:
 		ret1 := Tray_Notifications_Fade(1)
 		if (ret1) {
-			SetTimer, %A_ThisLabel%, -80
+			SetTimer, %A_ThisLabel%, -50
 		}
 		else {
 			creationOrder := Tray_Notifications_Adjust(1, creationOrder)
@@ -2051,7 +2047,7 @@ Tray_Notifications_Show(title, msg, params="") {
 	Gui_TrayNotification_Fade_2:
 		ret2 := Tray_Notifications_Fade(2)
 		if (ret2) {
-			SetTimer, %A_ThisLabel%, -80
+			SetTimer, %A_ThisLabel%, -50
 		}
 		else {
 			creationOrder := Tray_Notifications_Adjust(2, creationOrder)
@@ -2061,7 +2057,7 @@ Tray_Notifications_Show(title, msg, params="") {
 	Gui_TrayNotification_Fade_3:
 		ret3 := Tray_Notifications_Fade(3)
 		if (ret3) {
-			SetTimer, %A_ThisLabel%, -80
+			SetTimer, %A_ThisLabel%, -50
 		}
 		else {
 			creationOrder := Tray_Notifications_Adjust(3, creationOrder)
@@ -2071,7 +2067,7 @@ Tray_Notifications_Show(title, msg, params="") {
 	Gui_TrayNotification_Fade_4:
 		ret4 := Tray_Notifications_Fade(4)
 		if (ret4) {
-			SetTimer, %A_ThisLabel%, -80
+			SetTimer, %A_ThisLabel%, -50
 		}
 		else {
 			creationOrder := Tray_Notifications_Adjust(4, creationOrder)
@@ -2081,7 +2077,7 @@ Tray_Notifications_Show(title, msg, params="") {
 	Gui_TrayNotification_Fade_5:
 		ret5 := Tray_Notifications_Fade(5)
 		if (ret5) {
-			SetTimer, %A_ThisLabel%, -80
+			SetTimer, %A_ThisLabel%, -50
 		}
 		else {
 			creationOrder := Tray_Notifications_Adjust(5, creationOrder)
@@ -2108,15 +2104,13 @@ Tray_Notifications_Show(title, msg, params="") {
 
 Tray_Notifications_Fade(index="", start=false) {
 	static
-	global TrayNotifications_Values
-	global TrayNotifications_Handles
 
 	if (start) {
 		transparency%index% := 240 ; Set initial transparency
 		; Return
 	}
 
-	transparency%index% := (0 > transparency%index%)?(0):(transparency%index%-20)
+	transparency%index% := (0 > transparency%index%)?(0):(transparency%index%-15)
 	
 	Gui, TrayNotification%index%:+LastFound
 	WinSet, Transparent,% transparency%index%
