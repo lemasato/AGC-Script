@@ -1223,6 +1223,8 @@ Check_Update() {
 		FileDelete,% ProgramValues.Updater_File
 	if FileExist(ProgramValues.NewVersion_File)
 		FileDelete,% ProgramValues.NewVersion_File
+	if FileExist(A_ScriptDir "\gvUpdater.exe")
+		FileDelete,% A_ScriptDir "\gvUpdater.exe"
 
 ;	Changelogs file
 	Try {

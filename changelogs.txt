@@ -1,5 +1,7 @@
 \\
 --2.1--
+2.1.1: Fix: The updater file would not be deleted after the update process.
+
 Re-written from scratch, for a cleaner approach.
 Most of these changes are code-wise, but here are the most important changes!:
 
