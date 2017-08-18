@@ -1,5 +1,6 @@
 \\
 --2.1 & 2.1.1--
+2.1.2: Fix: Language change in the Settings would not be saved through reloading.
 2.1.1: Fix: The updater file would not be deleted after the update process.
 
 Re-written from scratch, for a cleaner approach.

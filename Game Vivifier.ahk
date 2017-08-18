@@ -39,7 +39,7 @@ Start_Script() {
 	global GameProfiles 				:= {}
 ;	main infos
 	ProgramValues.Name 					:= "Game Vivifier"
-	ProgramValues.Version 				:= "2.1.1"
+	ProgramValues.Version 				:= "2.1.2"
 	ProgramValues.Branch 				:= "master"
 	ProgramValues.Github_User 			:= "lemasato"
 	ProgramValues.GitHub_Repo 			:= "Game-Vivifier"
@@ -729,6 +729,7 @@ Gui_Settings() {
 		StringTrimRight, lang, lang, 1
 		ProgramSettings.SETTINGS.Language := lang
 		if (lang) {
+			IniWrite,% lang,% ProgramValues.Ini_File,SETTINGS, Language
 			Gui_Settings()
 		}
 	Return
