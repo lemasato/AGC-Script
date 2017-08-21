@@ -106,6 +106,7 @@ Start_Script() {
 	Check_Update()
 	NVCPL_Be_Ready()
 	translations := Get_Translations("Tray_Notifications")
+	Check_Conflicting_Applications()
 	Tray_Notifications_Show(ProgramValues.Name " v" ProgramValues.Version, translations.MSG_Start), translations := ""
 	Logs_Append("START", localSettings)
 
@@ -241,19 +242,27 @@ NVCPL_Run() {
 	Process, Close, %existingPID%
 	Process, WaitClose, %existingPID%, 5
 	if (ErrorLevel) {
-		NVCPL_Run_Error:
+		NVCPL_Run_CloseError:
 		isAdmin := A_IsAdmin
 		notAdminMsg := (isAdmin)?(""):("`n`n" translations.TEXT_NoAdmin)
 		MsgBox, 4096,% ProgramValues.Name,% translations.TEXT_CloseFailed notAdminMsg
 		Process, Exist, nvcplui.exe
 		if (ErrorLevel) {
-			Goto NVCPL_Run_Error
+			Goto NVCPL_Run_CloseError
 		}
 	}
 
 	; Run,% nvPath, , ,nvPID
 	Run,% nvPath, , Min,nvPID
-	WinWait,% "ahk_pid " nvPID
+	WinWait,% "ahk_pid " nvPID,,20
+	if (ErrorLevel) {
+		NVCPL_Run_RunError:
+		MsgBox, 4096,% ProgramValues.Name,% translations.TEXT_RunFailed
+		WinWait,% "ahk_pid " nvPID,,5
+		if (ErrorLevel) {
+			Goto NVCPL_Run_RunError
+		}
+	}
 	WinGet, nvHandler, ID,% "ahk_pid " nvPID
 	DetectHiddenWindows, %detectHiddenWin%
 
@@ -370,6 +379,9 @@ NVCPL_Trigger_Control(ctrlName, params="") {
 	_selectMonitor 			:= "SysListView321"
 	_gammaSlider 			:= "msctls_trackbar323"
 
+	_gammaMax := 280
+	_gammaMin := 30
+
 	if (ctrlName = "Use_NVIDIA_Settings") {
 		ControlClick,% _useNVIDIASettings,% "ahk_id " _nvHandler ; Click it
 		Sleep 100 ; Sleep to let the NVCPL process it
@@ -413,6 +425,11 @@ NVCPL_Trigger_Control(ctrlName, params="") {
 
 		whichArrow := (gamma > prevGamma)?("Right"):("Left")
 		value := (whichArrow = "Right")?(gamma-2):(gamma+2)
+		if (gamma >= _gammaMax)
+			value := _gammaMax-2, whichArrow := "Right"
+		else if (gamma <= gammaMin)
+			value := _gammaMin+2, whichArrow := "Left"
+
 		PostMessage, 0x0405,0,% value,% _gammaSlider,% "ahk_id " _nvHandler ; Send gamma
 		ControlSend,% _gammaSlider, {Blind}{%whichArrow% 2},% "ahk_id " _nvHandler ; Move to update gamma slider
 
@@ -554,7 +571,7 @@ Gui_Settings() {
 	Gui_Add({_Name:"Settings",_Font:"Segoe UI",_Type:"GroupBox",_Content:translations.GB_GeneralSettings,_Pos:"xm+5 w" (profileBoxWidth*2)+80 " h70",_Color:"Black",_Opts:"Section"})
 	Gui_Add({_Type:"DropDownList",_Content:translations.DDL_Language,_Pos:"xp+10 yp+20",_Var:"DDL_Language",_Label:labelPrefix "OnLanguageChange"})
 	Gui_Control("Settings", "ChooseString" ,GuiSettings_Controls.DDL_Language, ProgramSettings.SETTINGS.Language) ; Choose language __TO_BE_CHANGED__ Add something in Gui_Add that use Gui_Control() when using the ChooseString parameter
-	Gui_Add({_Type:"Checkbox",_Content:translations.CB_RunOnStartup,_Var:"CB_RunOnStartup",_CB_State:ProgramSettings.SETTINGS.RunOnStartup})
+	Gui_Add({_Type:"Checkbox",_Content:translations.CB_RunOnStartup,_Var:"CB_RunOnStartup",_Label:labelPrefix "OnDefaultSettingsChange",_CB_State:ProgramSettings.SETTINGS.RunOnStartup})
 	; Gamma default
 	Gui_Add({_Type:"Text",_Content:translations.TEXT_DefaultGamma,_Pos:"xs+350 ys+15"})
 	Gui_Add({_Type:"Edit",_Content:"",_Pos:"xp+20 y+5 w50",_Opts:"ReadOnly"})
@@ -1275,6 +1292,9 @@ Check_Update() {
 	Catch e {
 		Logs_Append("WinHttpRequest", {Obj:e})
 		Tray_Notifications_Show(translations.TITLE_ReleasesAPIFailed, translations.MSG_ReleasesAPIFailed)
+
+		latestReleaseTag 		:= "ERROR"
+		latestReleaseDownload 	:= ""
 	}
 
 /*
@@ -1304,13 +1324,16 @@ Check_Update() {
 	; latestStableVersion 	:= (versionOnline)?(versionOnline):("ERROR")
 	; latestStableVersion = %latestStableVersion%
 
+	latestReleaseTag := (latestReleaseTag)?(latestReleaseTag):("ERROR")
+	latestReleaseDownload := (latestReleaseDownload)?(latestReleaseDownload):("ERROR")
+
 	ProgramValues.Version_Latest 			:= latestReleaseTag
 	ProgramValues.Version_Online 			:= latestReleaseTag
 	ProgramValues.Version_Latest_Download 	:= latestReleaseDownload
 	latestStableVersion 					:= latestReleaseTag
 
 ;	Set new version number and notify about update
-	isUpdateAvailable := (latestStableVersion != "ERROR" && latestStableVersion != currentVersion)?(1):(0)
+	isUpdateAvailable := (latestStableVersion != "ERROR" && latestStableVersion != currentVersion && latestStableVersion)?(1):(0)
 	ProgramValues.Update_Available := isUpdateAvailable
 
 	if ( isUpdateAvailable ) {
@@ -1470,7 +1493,7 @@ Get_Local_Settings() {
 	}
 
 ;	SETTINGS
-	keys 		:= ["Language"]
+	keys 		:= ["Language","RunOnStartup"]
 	defValues 	:= ["",0]
 	for id, iniKey in keys {
 		IniRead, value,% iniFile,SETTINGS,% iniKey
@@ -1645,12 +1668,15 @@ Hotkeys_Handler() {
 	global ProgramHotkeys, ProgramSettings, GameProfiles, GameList, ExcludedProcesses
 	static gamma, vibrance, activeEXE, prev_activeEXE
 
+;	Multiple hotkeys, same key
 	for hotkeyName, boundKey in ProgramHotkeys {
 		for compare_hotkeyName, compare_boundKey in ProgramHotkeys {
 			if (hotkeyName != compare_hotkeyName && boundKey = A_ThisHotkey) {
 				if hotkeyName not in %actions%
 					actions .= hotkeyName ","
 			}
+			else if hotkeyName not in %actions%
+				actions .= hotkeyName ","
 		}
 	}
 	StringTrimRight, actions, actions, 1 ; Remove last comma
@@ -2117,6 +2143,29 @@ Tray_Notifications_Fade(index="", start=false) {
  *			MISC FUNCTIONS 															*
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * 
 */
+
+Check_Conflicting_Applications() {
+/*		Check possible running or installed applications causing conflict
+*/
+	global ProgramValues
+
+	EnvGet, LocalAppdata, LocalAppData
+	translations := Get_Translations("Tray_Notifications")
+
+	Process, Exist, flux.exe
+	if (ErrorLevel)
+		trayMsg .= translations.MSG_Conflict_Flux
+	if FileExist(LocalAppdata "\FluxSoftware\Flux\flux.exe")
+		installed .= "flux,"
+
+	StringTrimRight, installed, installed, 1 ; Remove last comma
+	StringTrimRight, running, running, 1 ; Remove last comma
+
+	if (trayMsg)
+		Tray_Notifications_Show(ProgramValues.Name,trayMsg,{Fade_Timer:20000})
+
+	return
+}
 
 Close_Previous_Program_Instance() {
 /*

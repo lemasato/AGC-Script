@@ -144,7 +144,8 @@
 			"MSG_VersionAvailable_AutoUpdate" : "Auto-upadting is enabled. Downloading the updater...",
 			"MSG_Start" : "Right click on the tray icon then:`n>> [Settings] to set up your profiles.`n>> [About?] to read patch notes.",
 			"TITLE_ReleasesAPIFailed" : "Failed to reach GitHub Releases.",
-			"MSG_ReleasesAPIFailed" : "This will not interfer with the operations of the tool,`nbut updating will be temporarily unavailable."
+			"MSG_ReleasesAPIFailed" : "This will not interfer with the operations of the tool,`nbut updating will be temporarily unavailable.",
+			"MSG_Conflict_Flux" : "Flux has been detected and is known to cause issues with %programName%.`nYour settings may fail to apply correctly or may be reverted a few seconds later.`nAs a workaround, you can use the Hotkey \"Trigger/Save\"."
 		},
 		"FR" : {
 			"TITLE_UpdaterDownloadFailed" : "Impossible de télécharger l'updater.",
@@ -158,7 +159,8 @@
 			"MSG_VersionAvailable_AutoUpdate" : "Mises à jour automatiques activées. Téléchargement de l'updater...",
 			"MSG_Start" : "Clic droit sur l'îcone puis:`n>> [Paramètres] pour configurer vos profiles.`n>> [À Propos?] pour voir les patch notes.",
 			"TITLE_ReleasesAPIFailed" : "Impossible d'atteindre GitHub Releases",
-			"MSG_ReleasesAPIFailed" : "Ceci n'interférera pas avec les opérations de %programName%`nMais les mises à jour seront temporairement indisponibles."
+			"MSG_ReleasesAPIFailed" : "Ceci n'interférera pas avec les opérations de %programName%`nMais les mises à jour seront temporairement indisponibles.",
+			"MSG_Conflict_Flux" : "Flux a été détecté et est connu pour entrer en conflit avec %programName%.`nVos paramètres peuvent échouer de s'appliquer ou être remplacés quelques secondes plus tard.`nComme solution, pouvez utiliser la Hotkey \"Trigger/Save\"."
 		}
 	},
 
@@ -173,11 +175,13 @@
 	"NVCPL_Run" : {
 		"EN" : {
 			"TEXT_CloseFailed" : "Failed to close the previous instance of the NVCPL.`nPlease try closing it manually before continuing.",
-			"TEXT_NoAdmin" : "It seems you are running %programName% without administrator provileges.`nThis could be the cause of this error."
+			"TEXT_NoAdmin" : "It seems you are running %programName% without administrator provileges.`nThis could be the cause of this error.",
+			"TEXT_RunFailed" : "Failed to detect the NVCPL window.`nRight click on the desktop and make sure the \"NVIDIA Control Panel\" option is available.`n`nTry running the NVCPL manually then close this box.`nIf running the NVCPL manually fails or if the option is not available, you will be required to reinstall your NVIDIA drivers."
 		},
 		"FR" : {
 			"TEXT_CloseFailed" : "Impossible de fermer l'instance précédente du NVCPL.`nVeuillez la fermer manuellement avant de procéder.",
-			"TEXT_NoAdmin" : "Il semblerait que %programName% n'est pas lancé avec les droits d'administrateur.`nIl se pourrait que celà en soit la cause."
+			"TEXT_NoAdmin" : "Il semblerait que %programName% n'est pas lancé avec les droits d'administrateur.`nIl se pourrait que celà en soit la cause.",
+			"TEXT_RunFailed" : "Le NVCPL n'a pas été détecté.`nFaites un clic droit sur le bureau, et assurez-vous que l'option \"Panneau de configuration NVIDIA\" est disponible.`n`nTentez e lancer le NVCPL manuellement puis fermez cette fenêtre.`nS'il vous est impossible de lancer le NVCPL, ou que l'option est manquante, vous devrez réinstaller vos drivers NVIDIA."
 		}
 	},
 
