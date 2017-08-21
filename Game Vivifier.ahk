@@ -39,7 +39,7 @@ Start_Script() {
 	global GameProfiles 				:= {}
 ;	main infos
 	ProgramValues.Name 					:= "Game Vivifier"
-	ProgramValues.Version 				:= "2.1.2"
+	ProgramValues.Version 				:= "2.1.3"
 	ProgramValues.Branch 				:= "master"
 	ProgramValues.Github_User 			:= "lemasato"
 	ProgramValues.GitHub_Repo 			:= "Game-Vivifier"
