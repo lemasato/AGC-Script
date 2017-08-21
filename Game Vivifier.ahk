@@ -1474,6 +1474,9 @@ Set_Local_Settings() {
 
 ;	Set current version, used for Update_Local_Settings()
 	IniWrite,% ProgramValues.Version,% iniFile,% "PROGRAM",% "Version"
+
+;	Delete empty section, if existing
+	IniDelete,% ProgramValues.Ini_File,% ""
 }
 
 Get_Local_Settings() {
