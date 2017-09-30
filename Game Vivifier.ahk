@@ -17,6 +17,8 @@ SetWinDelay, 0
 DetectHiddenWindows, Off
 ListLines, Off
 
+if ( !A_IsCompiled && FileExist(A_ScriptDir "\icon.ico") )
+	Menu, Tray, Icon,% A_ScriptDir "\icon.ico"
 Menu,Tray, Tip,Game Vivifier
 Menu,Tray,NoStandard
 Menu,Tray,Add,Close,Exit_Func
@@ -1891,6 +1893,8 @@ Create_Tray_Menu() {
 		Menu, Tray, NoIcon
 		Menu, Tray, Icon
 	}
+	if ( !A_IsCompiled && FileExist(A_ScriptDir "\icon.ico") )
+		Menu, Tray, Icon,% A_ScriptDir "\icon.ico"
 	return
 
 	Tray_Hide: 
