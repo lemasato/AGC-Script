@@ -181,7 +181,7 @@
 		"FR" : {
 			"TEXT_CloseFailed" : "Impossible de fermer l'instance précédente du NVCPL.`nVeuillez la fermer manuellement avant de procéder.",
 			"TEXT_NoAdmin" : "Il semblerait que %programName% n'est pas lancé avec les droits d'administrateur.`nIl se pourrait que celà en soit la cause.",
-			"TEXT_RunFailed" : "Le NVCPL n'a pas été détecté.`nFaites un clic droit sur le bureau, et assurez-vous que l'option \"Panneau de configuration NVIDIA\" est disponible.`n`nTentez e lancer le NVCPL manuellement puis fermez cette fenêtre.`nS'il vous est impossible de lancer le NVCPL, ou que l'option est manquante, vous devrez réinstaller vos drivers NVIDIA."
+			"TEXT_RunFailed" : "Le NVCPL n'a pas été détecté.`nFaites un clic droit sur le bureau, et assurez-vous que l'option \"Panneau de configuration NVIDIA\" est disponible.`n`nTentez de lancer le NVCPL manuellement puis fermez cette fenêtre.`nS'il vous est impossible de lancer le NVCPL, ou que l'option est manquante, vous devrez réinstaller vos drivers NVIDIA."
 		}
 	},
 
