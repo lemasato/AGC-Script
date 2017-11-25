@@ -23,12 +23,7 @@ Menu,Tray, Tip,Game Vivifier
 Menu,Tray,NoStandard
 Menu,Tray,Add,Close,Exit_Func
 
-Gui +LastFound 
-Hwnd := WinExist()
-DllCall( "RegisterShellHookWindow", UInt,Hwnd )
-MsgNum := DllCall( "RegisterWindowMessage", Str,"SHELLHOOK" )
-OnMessage( MsgNum, "ShellMessage")
-
+ShellMessage_State(1)
 Start_Script()
 Return
 
@@ -2151,6 +2146,16 @@ Tray_Notifications_Fade(index="", start=false) {
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * 
 */
 
+ShellMessage_State(state) {
+	Gui, ShellMsg:Destroy
+	Gui, ShellMsg:New, +LastFound 
+
+	Hwnd := WinExist()
+	DllCall( "RegisterShellHookWindow", UInt,Hwnd )
+	MsgNum := DllCall( "RegisterWindowMessage", Str,"SHELLHOOK" )
+	OnMessage( MsgNum, "ShellMessage", state)
+}
+
 Check_Conflicting_Applications() {
 /*		Check possible running or installed applications causing conflict
 */
@@ -2447,6 +2452,8 @@ Reload_Func() {
 Exit_Func(ExitReason, ExitCode) {
 	global NVIDIA_Values, ProgramSettings
 	static closing
+
+	ShellMessage_State(0)
 
 	if (closing) {
 		closing := false
