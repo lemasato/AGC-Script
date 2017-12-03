@@ -1,5 +1,5 @@
---2.1.3--
 \\
+--2.1.3--
 - In case we fail to detect the NVCPL after running it, we will alert the user.
 This is meants to prevent a rare issue where the NVCPL cannot be accessed, due to a corrupted drivers installation.
 - In case flux is detected, a traytip will appear, to alert the user of a known conflict.
